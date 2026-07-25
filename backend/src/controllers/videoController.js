@@ -152,6 +152,7 @@ export const createVideo = asyncHandler(async (req, res) => {
     description,
     tags = [],
     categoryId,
+    category: categorySlug,
     status = 'draft',
     visibility = 'public',
     metaTitle,
@@ -163,18 +164,31 @@ export const createVideo = asyncHandler(async (req, res) => {
     seriesTitle,
     scheduledAt,
     expiresAt,
+    language,
+    allowComments,
+    isFeatured,
+    ageRating,
   } = req.body;
 
   if (!title) {
     throw new AppError('Title is required', 400, 'Validation Error');
   }
 
-  if (!categoryId) {
+  let resolvedCategoryId = categoryId;
+
+  if (!resolvedCategoryId && categorySlug) {
+    const cat = await prisma.category.findFirst({
+      where: { OR: [{ id: categorySlug }, { slug: categorySlug }, { name: categorySlug }] },
+    });
+    if (cat) resolvedCategoryId = cat.id;
+  }
+
+  if (!resolvedCategoryId) {
     throw new AppError('Category is required', 400, 'Validation Error');
   }
 
   const category = await prisma.category.findUnique({
-    where: { id: categoryId },
+    where: { id: resolvedCategoryId },
   });
 
   if (!category) {
@@ -195,7 +209,9 @@ export const createVideo = asyncHandler(async (req, res) => {
     counter++;
   }
 
-  const videoUrl = req.file ? `/uploads/videos/${req.file.filename}` : null;
+  const thumbnailUrl = req.files?.thumbnail?.[0]
+    ? `/uploads/thumbnails/${req.files.thumbnail[0].filename}`
+    : null;
 
   const video = await prisma.video.create({
     data: {
@@ -203,10 +219,13 @@ export const createVideo = asyncHandler(async (req, res) => {
       slug,
       description: description || null,
       tags: videoTags,
-      categoryId,
+      categoryId: resolvedCategoryId,
       status,
       visibility,
       videoUrl,
+      thumbnail: thumbnailUrl,
+      videoSize: req.file?.size || null,
+      videoFormat: req.file?.mimetype || null,
       metaTitle: metaTitle || null,
       metaDescription: metaDescription || null,
       canonicalUrl: canonicalUrl || null,

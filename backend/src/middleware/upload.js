@@ -4,12 +4,16 @@ import fs from 'fs/promises';
 import { config } from '../config/index.js';
 
 const tempDir = path.join(config.upload.dir, 'temp');
+const videosDir = path.join(config.upload.dir, 'videos');
+const thumbnailsDir = path.join(config.upload.dir, 'thumbnails');
 
-async function ensureTempDir() {
+async function ensureDirs() {
   await fs.mkdir(tempDir, { recursive: true });
+  await fs.mkdir(videosDir, { recursive: true });
+  await fs.mkdir(thumbnailsDir, { recursive: true });
 }
 
-await ensureTempDir();
+await ensureDirs();
 
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => {
@@ -48,19 +52,42 @@ function mixedFilter(_req, file, cb) {
 }
 
 export const uploadVideo = multer({
-  storage,
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, videosDir),
+    filename: (_req, file, cb) => {
+      const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+      cb(null, `${file.fieldname}-${uniqueSuffix}${path.extname(file.originalname)}`);
+    },
+  }),
   fileFilter: videoFilter,
   limits: { fileSize: 10 * 1024 * 1024 * 1024 },
 }).single('video');
 
 export const uploadThumbnail = multer({
-  storage,
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, thumbnailsDir),
+    filename: (_req, file, cb) => {
+      const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+      cb(null, `${file.fieldname}-${uniqueSuffix}${path.extname(file.originalname)}`);
+    },
+  }),
   fileFilter: imageFilter,
   limits: { fileSize: 5 * 1024 * 1024 },
 }).single('thumbnail');
 
 export const uploadMultiple = multer({
-  storage,
+  storage: multer.diskStorage({
+    destination: (_req, file, cb) => {
+      if (file.fieldname === 'video') cb(null, videosDir);
+      else if (file.fieldname === 'thumbnail') cb(null, thumbnailsDir);
+      else cb(null, tempDir);
+    },
+    filename: (_req, file, cb) => {
+      const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+      const ext = path.extname(file.originalname);
+      cb(null, `${file.fieldname}-${uniqueSuffix}${ext}`);
+    },
+  }),
   fileFilter: mixedFilter,
   limits: { fileSize: 10 * 1024 * 1024 * 1024 },
 }).fields([
