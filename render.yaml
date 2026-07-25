@@ -1,0 +1,35 @@
+services:
+  - type: web
+    name: anistrem-backend
+    runtime: node
+    rootDir: backend
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 5000
+      - key: MONGODB_URI
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 15m
+      - key: JWT_REFRESH_EXPIRES_IN
+        value: 7d
+      - key: FRONTEND_URL
+        value: https://anistrem-993.netlify.app
+      - key: ADMIN_EMAIL
+        value: admin@anistrem.com
+      - key: ADMIN_PASSWORD
+        value: Admin@123456
+      - key: UPLOAD_DIR
+        value: ./uploads
+      - key: MAX_FILE_SIZE
+        value: "524288000"
+      - key: STORAGE_TYPE
+        value: local
