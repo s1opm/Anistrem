@@ -1,153 +1,120 @@
 import multer from 'multer';
 import path from 'path';
-import fs from 'fs';
+import fs from 'fs/promises';
 import { config } from '../config/index.js';
-import { AppError } from './errorHandler.js';
 
-const uploadDir = config.upload.dir;
+const tempDir = path.join(config.upload.dir, 'temp');
 
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
+async function ensureTempDir() {
+  await fs.mkdir(tempDir, { recursive: true });
 }
 
-if (!fs.existsSync(path.join(uploadDir, 'videos'))) {
-  fs.mkdirSync(path.join(uploadDir, 'videos'), { recursive: true });
-}
-
-if (!fs.existsSync(path.join(uploadDir, 'thumbnails'))) {
-  fs.mkdirSync(path.join(uploadDir, 'thumbnails'), { recursive: true });
-}
-
-if (!fs.existsSync(path.join(uploadDir, 'temp'))) {
-  fs.mkdirSync(path.join(uploadDir, 'temp'), { recursive: true });
-}
+await ensureTempDir();
 
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    let dest = path.join(uploadDir, 'temp');
-    
-    if (file.fieldname === 'video') {
-      dest = path.join(uploadDir, 'videos');
-    } else if (file.fieldname === 'thumbnail' || file.fieldname === 'preview') {
-      dest = path.join(uploadDir, 'thumbnails');
-    }
-    
-    cb(null, dest);
+  destination: (_req, _file, cb) => {
+    cb(null, tempDir);
   },
-  filename: (req, file, cb) => {
+  filename: (_req, file, cb) => {
     const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
-    const ext = path.extname(file.originalname).toLowerCase();
+    const ext = path.extname(file.originalname);
     cb(null, `${file.fieldname}-${uniqueSuffix}${ext}`);
   },
 });
 
-const videoFilter = (req, file, cb) => {
-  const allowedTypes = config.upload.allowedVideoTypes;
-  if (allowedTypes.includes(file.mimetype)) {
+function videoFilter(_req, file, cb) {
+  if (config.upload.allowedVideoTypes.includes(file.mimetype)) {
     cb(null, true);
   } else {
-    cb(new AppError(`Invalid video format. Allowed: ${allowedTypes.join(', ')}`, 400), false);
+    cb(new Error(`Invalid video type: ${file.mimetype}. Allowed: ${config.upload.allowedVideoTypes.join(', ')}`));
   }
-};
+}
 
-const imageFilter = (req, file, cb) => {
-  const allowedTypes = config.upload.allowedImageTypes;
-  const normalizedMime = file.mimetype === 'image/jpg' ? 'image/jpeg' : file.mimetype;
-  if (allowedTypes.includes(normalizedMime)) {
+function imageFilter(_req, file, cb) {
+  if (config.upload.allowedImageTypes.includes(file.mimetype)) {
     cb(null, true);
   } else {
-    cb(new AppError(`Invalid image format: ${file.mimetype}. Allowed: ${allowedTypes.join(', ')}`, 400), false);
+    cb(new Error(`Invalid image type: ${file.mimetype}. Allowed: ${config.upload.allowedImageTypes.join(', ')}`));
   }
-};
+}
+
+function mixedFilter(_req, file, cb) {
+  const allAllowed = [...config.upload.allowedVideoTypes, ...config.upload.allowedImageTypes];
+  if (allAllowed.includes(file.mimetype)) {
+    cb(null, true);
+  } else {
+    cb(new Error(`Invalid file type: ${file.mimetype}. Allowed: ${allAllowed.join(', ')}`));
+  }
+}
 
 export const uploadVideo = multer({
   storage,
   fileFilter: videoFilter,
-  limits: {
-    fileSize: config.upload.maxFileSize,
-    files: 1,
-  },
+  limits: { fileSize: 10 * 1024 * 1024 * 1024 },
 }).single('video');
 
 export const uploadThumbnail = multer({
   storage,
   fileFilter: imageFilter,
-  limits: {
-    fileSize: 10 * 1024 * 1024,
-    files: 1,
-  },
+  limits: { fileSize: 5 * 1024 * 1024 },
 }).single('thumbnail');
 
 export const uploadMultiple = multer({
   storage,
-  fileFilter: (req, file, cb) => {
-    if (file.fieldname === 'video') {
-      videoFilter(req, file, cb);
-    } else if (file.fieldname === 'thumbnail' || file.fieldname === 'preview') {
-      imageFilter(req, file, cb);
-    } else {
-      cb(new AppError(`Unexpected field: ${file.fieldname}`, 400), false);
-    }
-  },
-  limits: {
-    fileSize: config.upload.maxFileSize,
-    files: 5,
-  },
+  fileFilter: mixedFilter,
+  limits: { fileSize: 10 * 1024 * 1024 * 1024 },
 }).fields([
   { name: 'video', maxCount: 1 },
   { name: 'thumbnail', maxCount: 1 },
-  { name: 'preview', maxCount: 1 },
-  { name: 'subtitles', maxCount: 10 },
+  { name: 'images', maxCount: 10 },
 ]);
 
-export const handleUploadError = (err, req, res, next) => {
+export function handleUploadError(err, req, res, next) {
   if (err instanceof multer.MulterError) {
-    if (err.code === 'LIMIT_FILE_SIZE') {
-      return res.status(400).json({
-        success: false,
-        error: 'File Too Large',
-        message: `File size exceeds ${config.upload.maxFileSize / (1024 * 1024)}MB limit`,
-      });
-    }
-    if (err.code === 'LIMIT_FILE_COUNT') {
-      return res.status(400).json({
-        success: false,
-        error: 'Too Many Files',
-        message: 'Maximum file upload limit exceeded',
-      });
-    }
-    if (err.code === 'LIMIT_UNEXPECTED_FILE') {
-      return res.status(400).json({
-        success: false,
-        error: 'Unexpected Field',
-        message: `Unexpected field: ${err.field}`,
-      });
-    }
-  }
-  
-  if (err instanceof AppError) {
-    return res.status(err.statusCode).json({
-      success: false,
-      error: err.error,
-      message: err.message,
+    const messages = {
+      LIMIT_FILE_SIZE: 'File too large',
+      LIMIT_FILE_COUNT: 'Too many files',
+      LIMIT_UNEXPECTED_FILE: 'Unexpected field name',
+      LIMIT_PART_COUNT: 'Too many parts',
+      LIMIT_FIELD_KEY: 'Field name too long',
+      LIMIT_FIELD_VALUE: 'Field value too long',
+      LIMIT_FIELD_COUNT: 'Too many fields',
+    };
+    return res.status(400).json({
+      error: messages[err.code] || 'Upload error',
+      details: err.message,
     });
   }
-  
-  next(err);
-};
 
-export const cleanupTempFiles = (files) => {
-  if (!files) return;
-  
-  const fileList = Array.isArray(files) ? files : Object.values(files).flat();
-  
-  fileList.forEach(file => {
-    if (file && file.path && fs.existsSync(file.path)) {
+  if (err && err.message?.startsWith('Invalid')) {
+    return res.status(400).json({ error: err.message });
+  }
+
+  if (err) {
+    return res.status(500).json({ error: 'Internal server error during upload' });
+  }
+
+  next();
+}
+
+export async function cleanupTempFiles(files) {
+  const paths = [];
+
+  if (files) {
+    if (files.video) paths.push(...files.video.map((f) => f.path));
+    if (files.thumbnail) paths.push(...files.thumbnail.map((f) => f.path));
+    if (files.images) paths.push(...files.images.map((f) => f.path));
+    if (files.path) paths.push(files.path);
+    if (Array.isArray(files)) paths.push(...files.map((f) => f.path));
+  }
+
+  await Promise.allSettled(
+    paths.map(async (filePath) => {
       try {
-        fs.unlinkSync(file.path);
-      } catch (error) {
-        console.error('Failed to delete temp file:', error);
+        await fs.unlink(filePath);
+      } catch {
+        // file already gone or never existed
       }
-    }
-  });
-};
+    })
+  );
+}

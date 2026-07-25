@@ -1,417 +1,298 @@
-import Video from '../models/Video.js';
-import Category from '../models/Category.js';
-import SiteSettings from '../models/SiteSettings.js';
-import Admin from '../models/Admin.js';
-import { asyncHandler } from '../middleware/errorHandler.js';
+import prisma from '../db/index.js';
 
-export const getDashboardStats = asyncHandler(async (req, res) => {
-  const { period = '30d' } = req.query;
-  
-  const days = period === '7d' ? 7 : period === '30d' ? 30 : period === '90d' ? 90 : 365;
-  const startDate = new Date();
-  startDate.setDate(startDate.getDate() - days);
-  
-  const [
-    totalVideos,
-    totalViews,
-    totalCategories,
-    recentUploads,
-    videosByStatus,
-    viewsByDay,
-    topCategories,
-    topVideos,
-    recentAdmins,
-  ] = await Promise.all([
-    Video.countDocuments(),
-    Video.aggregate([
-      { $group: { _id: null, total: { $sum: '$viewCount' } } },
-    ]),
-    Category.countDocuments({ isActive: true }),
-    Video.find()
-      .sort({ createdAt: -1 })
-      .limit(5)
-      .populate('category', 'name slug')
-      .select('title slug status processingStatus viewCount createdAt category')
-      .lean(),
-    Video.aggregate([
-      { $group: { _id: '$status', count: { $sum: 1 } } },
-      { $sort: { count: -1 } },
-    ]),
-    Video.aggregate([
-      { $match: { createdAt: { $gte: startDate } } },
-      {
-        $group: {
-          _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
-          count: { $sum: 1 },
-          views: { $sum: '$viewCount' },
-        },
-      },
-      { $sort: { _id: 1 } },
-    ]),
-    Category.find({ isActive: true })
-      .sort({ videoCount: -1, viewCount: -1 })
-      .limit(10)
-      .select('name slug videoCount viewCount icon iconColor gradient')
-      .lean(),
-    Video.find({ status: 'published' })
-      .sort({ viewCount: -1 })
-      .limit(10)
-      .populate('category', 'name slug')
-      .select('title slug viewCount likeCount publishedAt category')
-      .lean(),
-    Admin.find({ isActive: true })
-      .sort({ lastLogin: -1 })
-      .limit(5)
-      .select('name email role lastLogin')
-      .lean(),
-  ]);
-  
-  const stats = {
-    totalVideos,
-    totalViews: totalViews[0]?.total || 0,
-    totalCategories,
-    videosByStatus: videosByStatus.reduce((acc, item) => {
-      acc[item._id] = item.count;
-      return acc;
-    }, {}),
-    viewsByDay,
-    topCategories,
-    topVideos,
-    recentUploads,
-    recentAdmins,
-  };
-  
-  res.json({
-    success: true,
-    data: stats,
-  });
-});
+export async function getDashboardStats(req, res) {
+  try {
+    const weekAgo = new Date();
+    weekAgo.setDate(weekAgo.getDate() - 7);
 
-export const getVideoAnalytics = asyncHandler(async (req, res) => {
-  const { videoId, period = '30d' } = req.query;
-  
-  const days = period === '7d' ? 7 : period === '30d' ? 30 : period === '90d' ? 90 : 365;
-  const startDate = new Date();
-  startDate.setDate(startDate.getDate() - days);
-  
-  let videoQuery = { createdAt: { $gte: startDate } };
-  if (videoId) videoQuery._id = videoId;
-  
-  const [
-    viewsData,
-    engagementData,
-    retentionData,
-    trafficSources,
-    deviceData,
-    geoData,
-    qualityData,
-  ] = await Promise.all([
-    Video.aggregate([
-      { $match: videoQuery },
-      {
-        $group: {
-          _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
-          views: { $sum: '$viewCount' },
-          likes: { $sum: '$likeCount' },
-          comments: { $sum: '$commentCount' },
+    const [
+      totalVideos,
+      totalCategories,
+      viewsAggregate,
+      publishedVideos,
+      draftVideos,
+      recentVideos,
+      topVideos,
+      categoryDistribution,
+    ] = await Promise.all([
+      prisma.video.count(),
+      prisma.category.count(),
+      prisma.video.aggregate({ _sum: { viewCount: true } }),
+      prisma.video.count({ where: { status: 'published' } }),
+      prisma.video.count({ where: { status: 'draft' } }),
+      prisma.video.findMany({
+        where: { createdAt: { gte: weekAgo } },
+        orderBy: { createdAt: 'desc' },
+        take: 5,
+      }),
+      prisma.video.findMany({
+        orderBy: { viewCount: 'desc' },
+        take: 5,
+        include: { category: true },
+      }),
+      prisma.category.findMany({
+        include: { _count: { select: { videos: true } } },
+      }),
+    ]);
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        totalVideos,
+        totalCategories,
+        totalViews: viewsAggregate._sum.viewCount || 0,
+        publishedVideos,
+        draftVideos,
+        recentVideos,
+        topVideos,
+        categoryDistribution,
+      },
+    });
+  } catch (error) {
+    console.error('getDashboardStats error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to fetch dashboard stats',
+    });
+  }
+}
+
+export async function getVideoAnalytics(req, res) {
+  try {
+    const videosByStatus = await prisma.video.groupBy({
+      by: ['status'],
+      _count: { id: true },
+      _sum: { viewCount: true },
+    });
+
+    const totalViews = await prisma.video.aggregate({
+      _sum: { viewCount: true },
+      _avg: { viewCount: true },
+      _max: { viewCount: true },
+      _min: { viewCount: true },
+    });
+
+    const topPerformingVideos = await prisma.video.findMany({
+      orderBy: { viewCount: 'desc' },
+      take: 10,
+      include: { category: true },
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        videosByStatus,
+        views: {
+          total: totalViews._sum.viewCount || 0,
+          average: totalViews._avg.viewCount || 0,
+          max: totalViews._max.viewCount || 0,
+          min: totalViews._min.viewCount || 0,
+        },
+        topPerformingVideos,
+      },
+    });
+  } catch (error) {
+    console.error('getVideoAnalytics error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to fetch video analytics',
+    });
+  }
+}
+
+export async function getCategoryAnalytics(req, res) {
+  try {
+    const categories = await prisma.category.findMany({
+      include: {
+        _count: { select: { videos: true } },
+        videos: {
+          select: { viewCount: true },
         },
       },
-      { $sort: { _id: 1 } },
-    ]),
-    Video.aggregate([
-      { $match: videoQuery },
-      {
-        $group: {
-          _id: null,
-          totalViews: { $sum: '$viewCount' },
-          totalLikes: { $sum: '$likeCount' },
-          totalComments: { $sum: '$commentCount' },
-          totalShares: { $sum: '$shareCount' },
-          avgWatchTime: { $avg: '$averageWatchTime' },
-          completionRate: { $avg: '$completionRate' },
-        },
+      orderBy: { name: 'asc' },
+    });
+
+    const enriched = categories
+      .map((cat) => ({
+        id: cat.id,
+        name: cat.name,
+        slug: cat.slug,
+        videoCount: cat._count.videos,
+        totalViews: cat.videos.reduce((sum, v) => sum + (v.viewCount || 0), 0),
+        description: cat.description,
+        image: cat.image,
+      }))
+      .sort((a, b) => b.totalViews - a.totalViews);
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        categories: enriched,
+        totalCategories: enriched.length,
       },
-    ]),
-    Video.aggregate([
-      { $match: videoQuery },
-      {
-        $bucket: {
-          groupBy: '$completionRate',
-          boundaries: [0, 10, 25, 50, 75, 90, 100],
-          default: 'other',
-          output: {
-            count: { $sum: 1 },
-            avgViews: { $avg: '$viewCount' },
+    });
+  } catch (error) {
+    console.error('getCategoryAnalytics error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to fetch category analytics',
+    });
+  }
+}
+
+export async function getRevenueAnalytics(req, res) {
+  try {
+    return res.status(200).json({
+      success: true,
+      data: {
+        totalRevenue: 0,
+        monthlyRevenue: 0,
+        revenueByMonth: [],
+        topEarners: [],
+        adsRevenue: 0,
+        subscriptionRevenue: 0,
+      },
+    });
+  } catch (error) {
+    console.error('getRevenueAnalytics error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to fetch revenue analytics',
+    });
+  }
+}
+
+export async function getSystemHealth(req, res) {
+  try {
+    let dbStatus = 'healthy';
+    try {
+      await prisma.$queryRaw`SELECT 1`;
+    } catch {
+      dbStatus = 'unhealthy';
+    }
+
+    const memoryUsage = process.memoryUsage();
+    const uptime = process.uptime();
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        database: {
+          status: dbStatus,
+        },
+        memory: {
+          rss: memoryUsage.rss,
+          heapTotal: memoryUsage.heapTotal,
+          heapUsed: memoryUsage.heapUsed,
+          external: memoryUsage.external,
+          arrayBuffers: memoryUsage.arrayBuffers,
+        },
+        uptime: Math.floor(uptime),
+        timestamp: new Date().toISOString(),
+        nodeVersion: process.version,
+        platform: process.platform,
+      },
+    });
+  } catch (error) {
+    console.error('getSystemHealth error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to fetch system health',
+    });
+  }
+}
+
+export async function getRecentActivity(req, res) {
+  try {
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const [recentVideos, recentFavorites, recentViews] = await Promise.all([
+      prisma.video.findMany({
+        orderBy: { createdAt: 'desc' },
+        take: 10,
+        select: {
+          id: true,
+          title: true,
+          slug: true,
+          thumbnail: true,
+          status: true,
+          createdAt: true,
+        },
+      }),
+      prisma.favorite.findMany({
+        where: { createdAt: { gte: thirtyDaysAgo } },
+        orderBy: { createdAt: 'desc' },
+        take: 10,
+        include: {
+          video: {
+            select: {
+              id: true,
+              title: true,
+              slug: true,
+              thumbnail: true,
+            },
           },
         },
-      },
-    ]),
-    [],
-    [],
-    [],
-    [],
-  ]);
-  
-  res.json({
-    success: true,
-    data: {
-      viewsData,
-      engagement: engagementData[0] || {},
-      retentionData,
-      trafficSources,
-      deviceData,
-      geoData,
-      qualityData,
-    },
-  });
-});
-
-export const getCategoryAnalytics = asyncHandler(async (req, res) => {
-  const { period = '30d' } = req.query;
-  
-  const days = period === '7d' ? 7 : period === '30d' ? 30 : period === '90d' ? 90 : 365;
-  const startDate = new Date();
-  startDate.setDate(startDate.getDate() - days);
-  
-  const [
-    categoryStats,
-    categoryGrowth,
-    categoryEngagement,
-  ] = await Promise.all([
-    Category.aggregate([
-      { $match: { isActive: true } },
-      {
-        $lookup: {
-          from: 'videos',
-          let: { catId: '$_id' },
-          pipeline: [
-            { $match: { $expr: { $eq: ['$category', '$$catId'] }, status: 'published', createdAt: { $gte: startDate } } },
-            {
-              $group: {
-                _id: null,
-                videos: { $sum: 1 },
-                views: { $sum: '$viewCount' },
-                likes: { $sum: '$likeCount' },
-                watchTime: { $sum: '$watchTime' },
-              },
+      }),
+      prisma.videoView.findMany({
+        where: { viewedAt: { gte: thirtyDaysAgo } },
+        orderBy: { viewedAt: 'desc' },
+        take: 10,
+        include: {
+          video: {
+            select: {
+              id: true,
+              title: true,
+              slug: true,
+              thumbnail: true,
             },
-          ],
-          as: 'stats',
+          },
         },
-      },
-      { $unwind: { path: '$stats', preserveNullAndEmptyArrays: true } },
-      {
-        $project: {
-          name: 1,
-          slug: 1,
-          icon: 1,
-          iconColor: 1,
-          gradient: 1,
-          videoCount: { $ifNull: ['$stats.videos', 0] },
-          views: { $ifNull: ['$stats.views', 0] },
-          likes: { $ifNull: ['$stats.likes', 0] },
-          watchTime: { $ifNull: ['$stats.watchTime', 0] },
-        },
-      },
-      { $sort: { views: -1 } },
-    ]),
-    Category.aggregate([
-      { $match: { isActive: true } },
-      {
-        $lookup: {
-          from: 'videos',
-          let: { catId: '$_id' },
-          pipeline: [
-            { $match: { $expr: { $eq: ['$category', '$$catId'] }, status: 'published' } },
-            {
-              $group: {
-                _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
-                videos: { $sum: 1 },
-              },
-            },
-            { $sort: { _id: 1 } },
-          ],
-          as: 'growth',
-        },
-      },
-      { $unwind: { path: '$growth', preserveNullAndEmptyArrays: true } },
-      {
-        $group: {
-          _id: '$name',
-          slug: { $first: '$slug' },
-          growth: { $push: '$growth' },
-        },
-      },
-    ]),
-    Video.aggregate([
-      { $match: { status: 'published', createdAt: { $gte: startDate } } },
-      {
-        $group: {
-          _id: '$category',
-          avgCompletionRate: { $avg: '$completionRate' },
-          avgWatchTime: { $avg: '$averageWatchTime' },
-          totalEngagement: { $sum: { $add: ['$likeCount', '$commentCount', '$shareCount'] } },
-        },
-      },
-      {
-        $lookup: {
-          from: 'categories',
-          localField: '_id',
-          foreignField: '_id',
-          as: 'category',
-        },
-      },
-      { $unwind: '$category' },
-      {
-        $project: {
-          name: '$category.name',
-          slug: '$category.slug',
-          avgCompletionRate: 1,
-          avgWatchTime: 1,
-          totalEngagement: 1,
-        },
-      },
-      { $sort: { totalEngagement: -1 } },
-    ]),
-  ]);
-  
-  res.json({
-    success: true,
-    data: {
-      categoryStats,
-      categoryGrowth,
-      categoryEngagement,
-    },
-  });
-});
+      }),
+    ]);
 
-export const getRevenueAnalytics = asyncHandler(async (req, res) => {
-  // Placeholder for revenue analytics (ads, subscriptions, etc.)
-  res.json({
-    success: true,
-    data: {
-      adRevenue: { current: 0, previous: 0, growth: 0 },
-      subscriptionRevenue: { current: 0, previous: 0, growth: 0 },
-      totalRevenue: { current: 0, previous: 0, growth: 0 },
-      bySource: [],
-      byPeriod: [],
-    },
-  });
-});
+    return res.status(200).json({
+      success: true,
+      data: {
+        recentVideos,
+        recentFavorites,
+        recentViews,
+      },
+    });
+  } catch (error) {
+    console.error('getRecentActivity error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to fetch recent activity',
+    });
+  }
+}
 
-export const getSystemHealth = asyncHandler(async (req, res) => {
-  const settings = await SiteSettings.getSettings();
-  
-  const health = {
-    database: 'healthy',
-    storage: 'healthy',
-    processing: 'healthy',
-    cdn: 'healthy',
-    lastBackup: settings.lastBackup || null,
-    uptime: process.uptime(),
-    memory: process.memoryUsage(),
-    cpu: process.cpuUsage(),
-    version: process.version,
-    env: process.env.NODE_ENV,
-  };
-  
-  res.json({
-    success: true,
-    data: health,
-  });
-});
+export async function exportData(req, res) {
+  try {
+    const [videos, categories] = await Promise.all([
+      prisma.video.findMany({
+        include: { category: { select: { id: true, name: true, slug: true } } },
+      }),
+      prisma.category.findMany({
+        include: { _count: { select: { videos: true } } },
+      }),
+    ]);
 
-export const getRecentActivity = asyncHandler(async (req, res) => {
-  const { limit = 20, type = 'all' } = req.query;
-  
-  const activities = [];
-  
-  if (type === 'all' || type === 'videos') {
-    const recentVideos = await Video.find()
-      .sort({ createdAt: -1 })
-      .limit(parseInt(limit))
-      .populate('addedBy', 'name')
-      .populate('category', 'name')
-      .select('title slug status processingStatus createdAt addedBy category')
-      .lean();
-    
-    activities.push(...recentVideos.map(v => ({
-      type: 'video',
-      action: v.status === 'published' ? 'published' : 'uploaded',
-      title: v.title,
-      slug: v.slug,
-      category: v.category?.name,
-      user: v.addedBy?.name,
-      timestamp: v.createdAt,
-      status: v.status,
-      processingStatus: v.processingStatus,
-    })));
+    return res.status(200).json({
+      success: true,
+      data: {
+        exportedAt: new Date().toISOString(),
+        videos,
+        categories,
+      },
+    });
+  } catch (error) {
+    console.error('exportData error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to export data',
+    });
   }
-  
-  if (type === 'all' || type === 'admins') {
-    const recentAdmins = await Admin.find()
-      .sort({ lastLogin: -1 })
-      .limit(parseInt(limit))
-      .select('name email role lastLogin')
-      .lean();
-    
-    activities.push(...recentAdmins.map(a => ({
-      type: 'admin',
-      action: 'login',
-      title: `${a.name} logged in`,
-      user: a.name,
-      timestamp: a.lastLogin,
-    })));
-  }
-  
-  activities.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-  
-  res.json({
-    success: true,
-    data: activities.slice(0, parseInt(limit)),
-  });
-});
-
-export const exportData = asyncHandler(async (req, res) => {
-  const { type = 'videos', format = 'json', period = '30d' } = req.query;
-  
-  const days = period === '7d' ? 7 : period === '30d' ? 30 : period === '90d' ? 90 : 365;
-  const startDate = new Date();
-  startDate.setDate(startDate.getDate() - days);
-  
-  let data;
-  let filename;
-  
-  switch (type) {
-    case 'videos':
-      data = await Video.find({ createdAt: { $gte: startDate } })
-        .populate('category', 'name slug')
-        .populate('addedBy', 'name email')
-        .lean();
-      filename = `videos-${period}.${format}`;
-      break;
-    case 'categories':
-      data = await Category.find().lean();
-      filename = `categories-${period}.${format}`;
-      break;
-    case 'analytics':
-      // Complex analytics export
-      data = { message: 'Analytics export not implemented yet' };
-      filename = `analytics-${period}.${format}`;
-      break;
-    default:
-      return res.status(400).json({ success: false, message: 'Invalid export type' });
-  }
-  
-  if (format === 'csv') {
-    // Convert to CSV
-    res.setHeader('Content-Type', 'text/csv');
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    // CSV conversion logic here
-    return res.send('CSV export not fully implemented');
-  }
-  
-  res.setHeader('Content-Type', 'application/json');
-  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-  res.json(data);
-});
+}

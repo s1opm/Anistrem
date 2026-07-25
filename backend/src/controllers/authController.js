@@ -1,57 +1,139 @@
-import jwt from 'jsonwebtoken';
+import prisma from '../db/index.js';
 import bcrypt from 'bcryptjs';
-import Admin from '../models/Admin.js';
+import jwt from 'jsonwebtoken';
 import { config } from '../config/index.js';
-import { generateTokens, setTokenCookies, clearTokenCookies, verifyRefreshToken } from '../middleware/auth.js';
 import { AppError, asyncHandler } from '../middleware/errorHandler.js';
 
+const LOCK_DURATION_MS = 30 * 60 * 1000;
+const MAX_LOGIN_ATTEMPTS = 5;
+
+function generateTokens(admin) {
+  const accessToken = jwt.sign(
+    { id: admin.id, role: admin.role, tokenVersion: admin.tokenVersion ?? 0 },
+    config.jwt.secret,
+    { expiresIn: config.jwt.expiresIn }
+  );
+
+  const refreshToken = jwt.sign(
+    { id: admin.id, tokenVersion: admin.tokenVersion ?? 0, type: 'refresh' },
+    config.jwt.refreshSecret,
+    { expiresIn: config.jwt.refreshExpiresIn }
+  );
+
+  return { accessToken, refreshToken };
+}
+
+function setTokenCookies(res, accessToken, refreshToken) {
+  const isProd = config.nodeEnv === 'production';
+
+  res.cookie('accessToken', accessToken, {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: isProd ? 'none' : 'lax',
+    maxAge: 15 * 60 * 1000,
+    path: '/',
+  });
+
+  res.cookie('refreshToken', refreshToken, {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: isProd ? 'none' : 'lax',
+    maxAge: 7 * 24 * 60 * 60 * 1000,
+    path: '/',
+  });
+}
+
+function clearTokenCookies(res) {
+  const isProd = config.nodeEnv === 'production';
+
+  res.clearCookie('accessToken', {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: isProd ? 'none' : 'lax',
+    path: '/',
+  });
+
+  res.clearCookie('refreshToken', {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: isProd ? 'none' : 'lax',
+    path: '/',
+  });
+}
+
+function sanitizeAdmin(admin) {
+  const { password, ...rest } = admin;
+  return rest;
+}
+
 export const login = asyncHandler(async (req, res) => {
-  const { email, password, rememberMe } = req.body;
-  
-  const admin = await Admin.findOne({ email: email.toLowerCase() }).select('+password +refreshToken +loginAttempts +lockUntil');
-  
+  const { email, password } = req.body;
+
+  if (!email || !password) {
+    throw new AppError('Email and password are required', 400, 'Validation Error');
+  }
+
+  const admin = await prisma.admin.findUnique({
+    where: { email: email.toLowerCase() },
+  });
+
   if (!admin) {
     throw new AppError('Invalid email or password', 401, 'Invalid Credentials');
   }
-  
+
   if (!admin.isActive) {
     throw new AppError('Account is deactivated', 403, 'Account Deactivated');
   }
-  
-  if (admin.lockUntil && admin.lockUntil > Date.now()) {
-    const minutes = Math.ceil((admin.lockUntil - Date.now()) / 60000);
-    throw new AppError(`Account locked. Try again in ${minutes} minutes`, 403, 'Account Locked');
+
+  if (admin.lockUntil && admin.lockUntil.getTime() > Date.now()) {
+    const minutes = Math.ceil((admin.lockUntil.getTime() - Date.now()) / 60000);
+    throw new AppError(
+      `Account locked. Try again in ${minutes} minute${minutes > 1 ? 's' : ''}`,
+      403,
+      'Account Locked'
+    );
   }
-  
-  const isMatch = await admin.comparePassword(password);
-  
+
+  const isMatch = await bcrypt.compare(password, admin.password);
+
   if (!isMatch) {
-    await admin.incrementLoginAttempts();
+    const newAttempts = admin.loginAttempts + 1;
+    const updateData = { loginAttempts: newAttempts };
+
+    if (newAttempts >= MAX_LOGIN_ATTEMPTS) {
+      updateData.lockUntil = new Date(Date.now() + LOCK_DURATION_MS);
+    }
+
+    await prisma.admin.update({
+      where: { id: admin.id },
+      data: updateData,
+    });
+
     throw new AppError('Invalid email or password', 401, 'Invalid Credentials');
   }
-  
-  await admin.resetLoginAttempts();
-  
-  admin.lastLogin = new Date();
-  await admin.save({ validateBeforeSave: false });
-  
+
   const tokens = generateTokens(admin);
 
-  admin.refreshToken = tokens.refreshToken;
-  await admin.save({ validateBeforeSave: false });
+  const updatedAdmin = await prisma.admin.update({
+    where: { id: admin.id },
+    data: {
+      loginAttempts: 0,
+      lockUntil: null,
+      lastLogin: new Date(),
+    },
+  });
+
   setTokenCookies(res, tokens.accessToken, tokens.refreshToken);
-  
+
   res.json({
     success: true,
     message: 'Login successful',
     data: {
       admin: {
-        id: admin._id,
-        email: admin.email,
-        name: admin.name,
-        role: admin.role,
-        isActive: admin.isActive,
-        lastLogin: admin.lastLogin,
+        id: updatedAdmin.id,
+        name: updatedAdmin.name,
+        email: updatedAdmin.email,
+        role: updatedAdmin.role,
       },
       accessToken: tokens.accessToken,
       refreshToken: tokens.refreshToken,
@@ -60,13 +142,8 @@ export const login = asyncHandler(async (req, res) => {
 });
 
 export const logout = asyncHandler(async (req, res) => {
-  if (req.admin) {
-    req.admin.refreshToken = undefined;
-    await req.admin.save({ validateBeforeSave: false });
-  }
-  
   clearTokenCookies(res);
-  
+
   res.json({
     success: true,
     message: 'Logged out successfully',
@@ -74,59 +151,59 @@ export const logout = asyncHandler(async (req, res) => {
 });
 
 export const refreshToken = asyncHandler(async (req, res) => {
-  let token = req.cookies?.refreshToken || req.body?.refreshToken;
-  
+  const token = req.cookies?.refreshToken || req.body?.refreshToken;
+
   if (!token) {
     throw new AppError('Refresh token required', 401, 'Token Required');
   }
-  
+
   let decoded;
   try {
-    decoded = verifyRefreshToken(token);
-  } catch (error) {
+    decoded = jwt.verify(token, config.jwt.refreshSecret);
+  } catch {
     throw new AppError('Invalid refresh token', 401, 'Invalid Token');
   }
-  
-  const admin = await Admin.findById(decoded.id).select('+refreshToken +tokenVersion');
-  
-  if (!admin || !admin.isActive) {
-    throw new AppError('Admin not found or inactive', 401, 'Invalid Token');
+
+  const admin = await prisma.admin.findUnique({
+    where: { id: decoded.id },
+  });
+
+  if (!admin) {
+    throw new AppError('Admin not found', 401, 'Invalid Token');
   }
-  
-  if (admin.refreshToken !== token) {
-    admin.refreshToken = undefined;
-    await admin.save({ validateBeforeSave: false });
-    throw new AppError('Token revoked', 401, 'Token Revoked');
+
+  if (!admin.isActive) {
+    throw new AppError('Account is deactivated', 403, 'Account Deactivated');
   }
-  
-  if (decoded.tokenVersion !== (admin.tokenVersion || 0)) {
-    throw new AppError('Token version mismatch', 401, 'Token Revoked');
+
+  if (decoded.tokenVersion !== (admin.tokenVersion ?? 0)) {
+    throw new AppError('Token has been revoked', 401, 'Token Revoked');
   }
-  
+
   const tokens = generateTokens(admin);
-  
-  admin.refreshToken = tokens.refreshToken;
-  await admin.save({ validateBeforeSave: false });
-  
+
   setTokenCookies(res, tokens.accessToken, tokens.refreshToken);
-  
+
   res.json({
     success: true,
     message: 'Token refreshed',
-    data: tokens,
+    data: {
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+    },
   });
 });
 
 export const getMe = asyncHandler(async (req, res) => {
-  const admin = req.admin;
-  
+  const admin = sanitizeAdmin(req.admin);
+
   res.json({
     success: true,
     data: {
       admin: {
-        id: admin._id,
-        email: admin.email,
+        id: admin.id,
         name: admin.name,
+        email: admin.email,
         role: admin.role,
         isActive: admin.isActive,
         lastLogin: admin.lastLogin,
@@ -138,31 +215,47 @@ export const getMe = asyncHandler(async (req, res) => {
 
 export const updateProfile = asyncHandler(async (req, res) => {
   const { name, email } = req.body;
-  const admin = req.admin;
-  
-  if (email && email.toLowerCase() !== admin.email) {
-    const exists = await Admin.findOne({ email: email.toLowerCase() });
-    if (exists) {
-      throw new AppError('Email already in use', 400, 'Email Exists');
+  const adminId = req.admin.id;
+
+  const updateData = {};
+
+  if (email) {
+    const normalizedEmail = email.toLowerCase();
+    if (normalizedEmail !== req.admin.email) {
+      const existing = await prisma.admin.findUnique({
+        where: { email: normalizedEmail },
+      });
+
+      if (existing) {
+        throw new AppError('Email already in use', 400, 'Email Exists');
+      }
+
+      updateData.email = normalizedEmail;
     }
-    admin.email = email.toLowerCase();
   }
-  
+
   if (name) {
-    admin.name = name;
+    updateData.name = name;
   }
-  
-  await admin.save();
-  
+
+  if (Object.keys(updateData).length === 0) {
+    throw new AppError('No fields to update', 400, 'Validation Error');
+  }
+
+  const updatedAdmin = await prisma.admin.update({
+    where: { id: adminId },
+    data: updateData,
+  });
+
   res.json({
     success: true,
     message: 'Profile updated successfully',
     data: {
       admin: {
-        id: admin._id,
-        email: admin.email,
-        name: admin.name,
-        role: admin.role,
+        id: updatedAdmin.id,
+        name: updatedAdmin.name,
+        email: updatedAdmin.email,
+        role: updatedAdmin.role,
       },
     },
   });
@@ -170,21 +263,37 @@ export const updateProfile = asyncHandler(async (req, res) => {
 
 export const changePassword = asyncHandler(async (req, res) => {
   const { currentPassword, newPassword } = req.body;
-  const admin = await Admin.findById(req.admin._id).select('+password');
-  
-  const isMatch = await admin.comparePassword(currentPassword);
+
+  if (!currentPassword || !newPassword) {
+    throw new AppError('Current password and new password are required', 400, 'Validation Error');
+  }
+
+  if (newPassword.length < 8) {
+    throw new AppError('New password must be at least 8 characters', 400, 'Validation Error');
+  }
+
+  const admin = await prisma.admin.findUnique({
+    where: { id: req.admin.id },
+  });
+
+  const isMatch = await bcrypt.compare(currentPassword, admin.password);
+
   if (!isMatch) {
     throw new AppError('Current password is incorrect', 400, 'Invalid Password');
   }
-  
-  admin.password = newPassword;
-  admin.tokenVersion = (admin.tokenVersion || 0) + 1;
-  admin.refreshToken = undefined;
-  
-  await admin.save();
-  
+
+  const hashedPassword = await bcrypt.hash(newPassword, 12);
+
+  await prisma.admin.update({
+    where: { id: req.admin.id },
+    data: {
+      password: hashedPassword,
+      tokenVersion: (admin.tokenVersion ?? 0) + 1,
+    },
+  });
+
   clearTokenCookies(res);
-  
+
   res.json({
     success: true,
     message: 'Password changed successfully. Please log in again.',
@@ -192,12 +301,19 @@ export const changePassword = asyncHandler(async (req, res) => {
 });
 
 export const revokeAllTokens = asyncHandler(async (req, res) => {
-  req.admin.tokenVersion = (req.admin.tokenVersion || 0) + 1;
-  req.admin.refreshToken = undefined;
-  await req.admin.save({ validateBeforeSave: false });
-  
+  const admin = await prisma.admin.findUnique({
+    where: { id: req.admin.id },
+  });
+
+  await prisma.admin.update({
+    where: { id: req.admin.id },
+    data: {
+      tokenVersion: (admin.tokenVersion ?? 0) + 1,
+    },
+  });
+
   clearTokenCookies(res);
-  
+
   res.json({
     success: true,
     message: 'All sessions revoked. Please log in again.',

@@ -1,456 +1,530 @@
-import SiteSettings from '../models/SiteSettings.js';
-import { AppError, asyncHandler } from '../middleware/errorHandler.js';
-import { uploadToCloud, deleteFromCloud } from '../services/cloudStorage.js';
+import prisma from '../db/index.js';
 
-export const getSiteSettings = asyncHandler(async (req, res) => {
-  const settings = await SiteSettings.getSettings();
-  
-  res.json({
-    success: true,
-    data: settings.getPublicSettings(),
-  });
-});
+const PUBLIC_KEYS = [
+  'siteName',
+  'logo',
+  'favicon',
+  'theme',
+  'colors',
+  'heroBanner',
+  'featuredContent',
+  'footerText',
+  'socialLinks',
+  'maintenance',
+];
 
-export const getAdminSiteSettings = asyncHandler(async (req, res) => {
-  const settings = await SiteSettings.getSettings();
-  
-  res.json({
-    success: true,
-    data: settings,
-  });
-});
-
-export const updateSiteSettings = asyncHandler(async (req, res) => {
-  let settings = await SiteSettings.getSettings();
-  
-  const allowedUpdates = [
-    'siteName', 'siteDescription', 'siteUrl',
-    'logo', 'logoDark', 'favicon',
-    'primaryColor', 'secondaryColor', 'accentColor', 'backgroundColor', 'textColor', 'fontFamily',
-    'heroBanner',
-    'featuredCategories', 'featuredVideos', 'trendingVideos', 'latestVideos', 'mostViewedVideos',
-    'socialLinks',
-    'contactEmail', 'supportEmail',
-    'copyrightText',
-    'privacyPolicyUrl', 'termsOfServiceUrl', 'dmcaUrl', 'cookiePolicyUrl',
-    'adsenseClientId', 'adsenseSlots',
-    'adSettings',
-    'analytics',
-    'seo',
-    'video',
-    'player',
-    'comments',
-    'maintenance',
-    'registration',
-    'cache',
-  ];
-  
-  const updates = req.body;
-  
-  allowedUpdates.forEach(field => {
-    if (updates[field] !== undefined) {
-      settings[field] = updates[field];
-    }
-  });
-  
-  if (req.files) {
-    if (req.files.logo?.[0]) {
-      if (settings.logo) await deleteFromCloud(settings.logo);
-      const uploaded = await uploadToCloud(req.files.logo[0].path, 'site/logo');
-      settings.logo = uploaded.url;
-    }
-    
-    if (req.files.logoDark?.[0]) {
-      if (settings.logoDark) await deleteFromCloud(settings.logoDark);
-      const uploaded = await uploadToCloud(req.files.logoDark[0].path, 'site/logo');
-      settings.logoDark = uploaded.url;
-    }
-    
-    if (req.files.favicon?.[0]) {
-      if (settings.favicon) await deleteFromCloud(settings.favicon);
-      const uploaded = await uploadToCloud(req.files.favicon[0].path, 'site/favicon');
-      settings.favicon = uploaded.url;
-    }
-    
-    if (req.files.heroBanner?.[0]) {
-      if (settings.heroBanner?.backgroundImage) await deleteFromCloud(settings.heroBanner.backgroundImage);
-      const uploaded = await uploadToCloud(req.files.heroBanner[0].path, 'site/hero');
-      settings.heroBanner.backgroundImage = uploaded.url;
-    }
-    
-    if (req.files.ogImage?.[0]) {
-      if (settings.seo?.defaultOgImage) await deleteFromCloud(settings.seo.defaultOgImage);
-      const uploaded = await uploadToCloud(req.files.ogImage[0].path, 'site/seo');
-      if (!settings.seo) settings.seo = {};
-      settings.seo.defaultOgImage = uploaded.url;
-    }
+async function getSettingsByKey(key) {
+  const record = await prisma.siteSettings.findUnique({ where: { key } });
+  if (!record) return null;
+  try {
+    return JSON.parse(record.value);
+  } catch {
+    return record.value;
   }
-  
-  settings.updatedBy = req.admin._id;
-  await settings.save();
-  
-  res.json({
-    success: true,
-    message: 'Site settings updated successfully',
-    data: settings.getPublicSettings(),
-  });
-});
+}
 
-export const updateHeroBanner = asyncHandler(async (req, res) => {
-  const settings = await SiteSettings.getSettings();
-  const { title, subtitle, ctaText, ctaLink, videoId } = req.body;
-  
-  if (!settings.heroBanner) settings.heroBanner = {};
-  
-  if (title) settings.heroBanner.title = title;
-  if (subtitle) settings.heroBanner.subtitle = subtitle;
-  if (ctaText) settings.heroBanner.ctaText = ctaText;
-  if (ctaLink) settings.heroBanner.ctaLink = ctaLink;
-  if (videoId) settings.heroBanner.videoId = videoId;
-  
-  if (req.files?.backgroundImage?.[0]) {
-    if (settings.heroBanner.backgroundImage) {
-      await deleteFromCloud(settings.heroBanner.backgroundImage);
+async function upsertSetting(key, value, adminId) {
+  const stringified = typeof value === 'string' ? value : JSON.stringify(value);
+  return prisma.siteSettings.upsert({
+    where: { key },
+    update: { value: stringified, updatedAt: new Date() },
+    create: { key, value: stringified, ...(adminId ? { adminId } : {}) },
+  });
+}
+
+export async function getSiteSettings(req, res) {
+  try {
+    const records = await prisma.siteSettings.findMany();
+    const settings = {};
+    for (const record of records) {
+      try {
+        settings[record.key] = JSON.parse(record.value);
+      } catch {
+        settings[record.key] = record.value;
+      }
     }
-    const uploaded = await uploadToCloud(req.files.backgroundImage[0].path, 'site/hero');
-    settings.heroBanner.backgroundImage = uploaded.url;
+
+    return res.status(200).json({
+      success: true,
+      data: settings,
+    });
+  } catch (error) {
+    console.error('getSiteSettings error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to fetch site settings',
+    });
   }
-  
-  settings.updatedBy = req.admin._id;
-  await settings.save();
-  
-  res.json({
-    success: true,
-    message: 'Hero banner updated successfully',
-    data: settings.heroBanner,
-  });
-});
+}
 
-export const updateFeaturedContent = asyncHandler(async (req, res) => {
-  const settings = await SiteSettings.getSettings();
-  const { featuredCategories, featuredVideos, trendingVideos, latestVideos, mostViewedVideos } = req.body;
-  
-  if (featuredCategories) settings.featuredCategories = featuredCategories;
-  if (featuredVideos) settings.featuredVideos = featuredVideos;
-  if (trendingVideos) settings.trendingVideos = trendingVideos;
-  if (latestVideos) settings.latestVideos = latestVideos;
-  if (mostViewedVideos) settings.mostViewedVideos = mostViewedVideos;
-  
-  settings.updatedBy = req.admin._id;
-  await settings.save();
-  
-  res.json({
-    success: true,
-    message: 'Featured content updated successfully',
-    data: {
-      featuredCategories: settings.featuredCategories,
-      featuredVideos: settings.featuredVideos,
-      trendingVideos: settings.trendingVideos,
-      latestVideos: settings.latestVideos,
-      mostViewedVideos: settings.mostViewedVideos,
-    },
-  });
-});
-
-export const updateAdSettings = asyncHandler(async (req, res) => {
-  const settings = await SiteSettings.getSettings();
-  const { adsenseClientId, adsenseSlots, adSettings } = req.body;
-  
-  if (adsenseClientId) settings.adsenseClientId = adsenseClientId;
-  if (adsenseSlots) settings.adsenseSlots = { ...settings.adsenseSlots, ...adsenseSlots };
-  if (adSettings) settings.adSettings = { ...settings.adSettings, ...adSettings };
-  
-  settings.updatedBy = req.admin._id;
-  await settings.save();
-  
-  res.json({
-    success: true,
-    message: 'Ad settings updated successfully',
-    data: {
-      adsenseClientId: settings.adsenseClientId,
-      adsenseSlots: settings.adsenseSlots,
-      adSettings: settings.adSettings,
-    },
-  });
-});
-
-export const updateAnalyticsSettings = asyncHandler(async (req, res) => {
-  const settings = await SiteSettings.getSettings();
-  const { googleAnalyticsId, googleTagManagerId, facebookPixelId, customHeadScript, customBodyScript } = req.body;
-  
-  if (!settings.analytics) settings.analytics = {};
-  
-  if (googleAnalyticsId) settings.analytics.googleAnalyticsId = googleAnalyticsId;
-  if (googleTagManagerId) settings.analytics.googleTagManagerId = googleTagManagerId;
-  if (facebookPixelId) settings.analytics.facebookPixelId = facebookPixelId;
-  if (customHeadScript) settings.analytics.customHeadScript = customHeadScript;
-  if (customBodyScript) settings.analytics.customBodyScript = customBodyScript;
-  
-  settings.updatedBy = req.admin._id;
-  await settings.save();
-  
-  res.json({
-    success: true,
-    message: 'Analytics settings updated successfully',
-    data: settings.analytics,
-  });
-});
-
-export const updateSeoSettings = asyncHandler(async (req, res) => {
-  const settings = await SiteSettings.getSettings();
-  const { defaultTitle, defaultDescription, defaultKeywords, defaultOgImage, robotsTxt, sitemapEnabled } = req.body;
-  
-  if (!settings.seo) settings.seo = {};
-  
-  if (defaultTitle) settings.seo.defaultTitle = defaultTitle;
-  if (defaultDescription) settings.seo.defaultDescription = defaultDescription;
-  if (defaultKeywords) settings.seo.defaultKeywords = defaultKeywords;
-  if (defaultOgImage) settings.seo.defaultOgImage = defaultOgImage;
-  if (robotsTxt) settings.seo.robotsTxt = robotsTxt;
-  if (sitemapEnabled !== undefined) settings.seo.sitemapEnabled = sitemapEnabled;
-  
-  if (req.files?.ogImage?.[0]) {
-    if (settings.seo.defaultOgImage) await deleteFromCloud(settings.seo.defaultOgImage);
-    const uploaded = await uploadToCloud(req.files.ogImage[0].path, 'site/seo');
-    settings.seo.defaultOgImage = uploaded.url;
-  }
-  
-  settings.updatedBy = req.admin._id;
-  await settings.save();
-  
-  res.json({
-    success: true,
-    message: 'SEO settings updated successfully',
-    data: settings.seo,
-  });
-});
-
-export const updateVideoSettings = asyncHandler(async (req, res) => {
-  const settings = await SiteSettings.getSettings();
-  const videoSettings = req.body;
-  
-  if (!settings.video) settings.video = {};
-  
-  Object.keys(videoSettings).forEach(key => {
-    if (videoSettings[key] !== undefined) {
-      settings.video[key] = videoSettings[key];
+export async function getAdminSiteSettings(req, res) {
+  try {
+    const records = await prisma.siteSettings.findMany();
+    const settings = {};
+    for (const record of records) {
+      try {
+        settings[record.key] = JSON.parse(record.value);
+      } catch {
+        settings[record.key] = record.value;
+      }
     }
-  });
-  
-  settings.updatedBy = req.admin._id;
-  await settings.save();
-  
-  res.json({
-    success: true,
-    message: 'Video settings updated successfully',
-    data: settings.video,
-  });
-});
 
-export const updatePlayerSettings = asyncHandler(async (req, res) => {
-  const settings = await SiteSettings.getSettings();
-  const playerSettings = req.body;
-  
-  if (!settings.player) settings.player = {};
-  
-  Object.keys(playerSettings).forEach(key => {
-    if (playerSettings[key] !== undefined) {
-      settings.player[key] = playerSettings[key];
-    }
-  });
-  
-  settings.updatedBy = req.admin._id;
-  await settings.save();
-  
-  res.json({
-    success: true,
-    message: 'Player settings updated successfully',
-    data: settings.player,
-  });
-});
-
-export const updateCommentSettings = asyncHandler(async (req, res) => {
-  const settings = await SiteSettings.getSettings();
-  const commentSettings = req.body;
-  
-  if (!settings.comments) settings.comments = {};
-  
-  Object.keys(commentSettings).forEach(key => {
-    if (commentSettings[key] !== undefined) {
-      settings.comments[key] = commentSettings[key];
-    }
-  });
-  
-  settings.updatedBy = req.admin._id;
-  await settings.save();
-  
-  res.json({
-    success: true,
-    message: 'Comment settings updated successfully',
-    data: settings.comments,
-  });
-});
-
-export const updateMaintenanceMode = asyncHandler(async (req, res) => {
-  const settings = await SiteSettings.getSettings();
-  const { enabled, message, allowedIPs } = req.body;
-  
-  if (!settings.maintenance) settings.maintenance = {};
-  
-  if (enabled !== undefined) settings.maintenance.enabled = enabled;
-  if (message) settings.maintenance.message = message;
-  if (allowedIPs) settings.maintenance.allowedIPs = allowedIPs;
-  
-  settings.updatedBy = req.admin._id;
-  await settings.save();
-  
-  res.json({
-    success: true,
-    message: `Maintenance mode ${enabled ? 'enabled' : 'disabled'}`,
-    data: settings.maintenance,
-  });
-});
-
-export const updateRegistrationSettings = asyncHandler(async (req, res) => {
-  const settings = await SiteSettings.getSettings();
-  const { enabled, requireVerification, defaultRole, allowedDomains, blockedDomains } = req.body;
-  
-  if (!settings.registration) settings.registration = {};
-  
-  if (enabled !== undefined) settings.registration.enabled = enabled;
-  if (requireVerification !== undefined) settings.registration.requireVerification = requireVerification;
-  if (defaultRole) settings.registration.defaultRole = defaultRole;
-  if (allowedDomains) settings.registration.allowedDomains = allowedDomains;
-  if (blockedDomains) settings.registration.blockedDomains = blockedDomains;
-  
-  settings.updatedBy = req.admin._id;
-  await settings.save();
-  
-  res.json({
-    success: true,
-    message: 'Registration settings updated successfully',
-    data: settings.registration,
-  });
-});
-
-export const updateUploadSettings = asyncHandler(async (req, res) => {
-  const settings = await SiteSettings.getSettings();
-  const { storage, localPath, s3Bucket, s3Region, s3AccessKey, s3SecretKey, cloudinaryCloudName, cloudinaryApiKey, cloudinaryApiSecret, cdnUrl } = req.body;
-  
-  if (!settings.upload) settings.upload = {};
-  
-  if (storage) settings.upload.storage = storage;
-  if (localPath) settings.upload.localPath = localPath;
-  if (s3Bucket) settings.upload.s3Bucket = s3Bucket;
-  if (s3Region) settings.upload.s3Region = s3Region;
-  if (s3AccessKey) settings.upload.s3AccessKey = s3AccessKey;
-  if (s3SecretKey) settings.upload.s3SecretKey = s3SecretKey;
-  if (cloudinaryCloudName) settings.upload.cloudinaryCloudName = cloudinaryCloudName;
-  if (cloudinaryApiKey) settings.upload.cloudinaryApiKey = cloudinaryApiKey;
-  if (cloudinaryApiSecret) settings.upload.cloudinaryApiSecret = cloudinaryApiSecret;
-  if (cdnUrl) settings.upload.cdnUrl = cdnUrl;
-  
-  settings.updatedBy = req.admin._id;
-  await settings.save();
-  
-  res.json({
-    success: true,
-    message: 'Upload settings updated successfully',
-    data: settings.upload,
-  });
-});
-
-export const getPublicConfig = asyncHandler(async (req, res) => {
-  const settings = await SiteSettings.getSettings();
-  
-  const publicConfig = {
-    siteName: settings.siteName,
-    siteDescription: settings.siteDescription,
-    siteUrl: settings.siteUrl,
-    logo: settings.logo,
-    logoDark: settings.logoDark,
-    favicon: settings.favicon,
-    primaryColor: settings.primaryColor,
-    secondaryColor: settings.secondaryColor,
-    accentColor: settings.accentColor,
-    backgroundColor: settings.backgroundColor,
-    textColor: settings.textColor,
-    fontFamily: settings.fontFamily,
-    heroBanner: settings.heroBanner,
-    socialLinks: settings.socialLinks,
-    contactEmail: settings.contactEmail,
-    supportEmail: settings.supportEmail,
-    copyrightText: settings.copyrightText,
-    privacyPolicyUrl: settings.privacyPolicyUrl,
-    termsOfServiceUrl: settings.termsOfServiceUrl,
-    dmcaUrl: settings.dmcaUrl,
-    cookiePolicyUrl: settings.cookiePolicyUrl,
-    adsenseClientId: settings.adsenseClientId,
-    adsenseSlots: settings.adsenseSlots,
-    adSettings: settings.adSettings,
-    analytics: settings.analytics ? {
-      googleAnalyticsId: settings.analytics.googleAnalyticsId,
-      googleTagManagerId: settings.analytics.googleTagManagerId,
-      facebookPixelId: settings.analytics.facebookPixelId,
-    } : {},
-    video: settings.video ? {
-      defaultQuality: settings.video.defaultQuality,
-      autoPlay: settings.video.autoPlay,
-      muted: settings.video.muted,
-      enablePIP: settings.video.enablePIP,
-    } : {},
-    player: settings.player ? {
-      theme: settings.player.theme,
-      accentColor: settings.player.accentColor,
-      autoPlay: settings.player.autoPlay,
-      muted: settings.player.muted,
-      loop: settings.player.loop,
-      showControls: settings.player.showControls,
-      enablePIP: settings.player.enablePIP,
-      enableFullscreen: settings.player.enableFullscreen,
-      enableSpeedControl: settings.player.enableSpeedControl,
-      enableQualitySelection: settings.player.enableQualitySelection,
-      enableChapters: settings.player.enableChapters,
-      enableSubtitles: settings.player.enableSubtitles,
-    } : {},
-    maintenance: settings.maintenance ? {
-      enabled: settings.maintenance.enabled,
-      message: settings.maintenance.message,
-    } : { enabled: false },
-  };
-  
-  res.json({
-    success: true,
-    data: publicConfig,
-  });
-});
-
-export const generateSitemap = asyncHandler(async (req, res) => {
-  const settings = await SiteSettings.getSettings();
-  
-  if (!settings.seo?.sitemapEnabled) {
-    throw new AppError('Sitemap generation is disabled', 403, 'Disabled');
+    return res.status(200).json({
+      success: true,
+      data: settings,
+    });
+  } catch (error) {
+    console.error('getAdminSiteSettings error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to fetch admin site settings',
+    });
   }
-  
-  // This would typically be a scheduled job, but we can trigger it manually
-  // The actual sitemap generation would be in a separate service
-  
-  res.json({
-    success: true,
-    message: 'Sitemap generation triggered',
-    data: { status: 'pending' },
-  });
-});
+}
 
-export const generateRobotsTxt = asyncHandler(async (req, res) => {
-  const settings = await SiteSettings.getSettings();
-  
-  let robotsTxt = settings.seo?.robotsTxt || `User-agent: *\nAllow: /\n\nSitemap: ${settings.siteUrl}/sitemap.xml`;
-  
-  if (settings.maintenance?.enabled) {
-    robotsTxt = 'User-agent: *\nDisallow: /';
+export async function updateSiteSettings(req, res) {
+  try {
+    const { settings } = req.body;
+    if (!settings || typeof settings !== 'object') {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid settings data',
+      });
+    }
+
+    const adminId = req.admin?.id || null;
+    const results = [];
+
+    for (const [key, value] of Object.entries(settings)) {
+      const record = await upsertSetting(key, value, adminId);
+      results.push(record);
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: { updated: results.length },
+      message: 'Settings updated successfully',
+    });
+  } catch (error) {
+    console.error('updateSiteSettings error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to update site settings',
+    });
   }
-  
-  res.set('Content-Type', 'text/plain');
-  res.send(robotsTxt);
-});
+}
+
+export async function updateHeroBanner(req, res) {
+  try {
+    const { title, subtitle, backgroundImage, ctaText, ctaLink, enabled } = req.body;
+    const adminId = req.admin?.id || null;
+
+    const data = {
+      ...(title !== undefined && { title }),
+      ...(subtitle !== undefined && { subtitle }),
+      ...(backgroundImage !== undefined && { backgroundImage }),
+      ...(ctaText !== undefined && { ctaText }),
+      ...(ctaLink !== undefined && { ctaLink }),
+      ...(enabled !== undefined && { enabled }),
+    };
+
+    const record = await upsertSetting('heroBanner', data, adminId);
+
+    return res.status(200).json({
+      success: true,
+      data,
+      message: 'Hero banner updated successfully',
+    });
+  } catch (error) {
+    console.error('updateHeroBanner error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to update hero banner',
+    });
+  }
+}
+
+export async function updateFeaturedContent(req, res) {
+  try {
+    const { featuredCategories, featuredVideos, collections, layout } = req.body;
+    const adminId = req.admin?.id || null;
+
+    const data = {
+      ...(featuredCategories !== undefined && { featuredCategories }),
+      ...(featuredVideos !== undefined && { featuredVideos }),
+      ...(collections !== undefined && { collections }),
+      ...(layout !== undefined && { layout }),
+    };
+
+    await upsertSetting('featuredContent', data, adminId);
+
+    return res.status(200).json({
+      success: true,
+      data,
+      message: 'Featured content updated successfully',
+    });
+  } catch (error) {
+    console.error('updateFeaturedContent error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to update featured content',
+    });
+  }
+}
+
+export async function updateAdSettings(req, res) {
+  try {
+    const { enabled, provider, placements, refreshInterval, adUnits } = req.body;
+    const adminId = req.admin?.id || null;
+
+    const data = {
+      ...(enabled !== undefined && { enabled }),
+      ...(provider !== undefined && { provider }),
+      ...(placements !== undefined && { placements }),
+      ...(refreshInterval !== undefined && { refreshInterval }),
+      ...(adUnits !== undefined && { adUnits }),
+    };
+
+    await upsertSetting('adSettings', data, adminId);
+
+    return res.status(200).json({
+      success: true,
+      data,
+      message: 'Ad settings updated successfully',
+    });
+  } catch (error) {
+    console.error('updateAdSettings error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to update ad settings',
+    });
+  }
+}
+
+export async function updateAnalyticsSettings(req, res) {
+  try {
+    const { enabled, provider, trackingId, events } = req.body;
+    const adminId = req.admin?.id || null;
+
+    const data = {
+      ...(enabled !== undefined && { enabled }),
+      ...(provider !== undefined && { provider }),
+      ...(trackingId !== undefined && { trackingId }),
+      ...(events !== undefined && { events }),
+    };
+
+    await upsertSetting('analytics', data, adminId);
+
+    return res.status(200).json({
+      success: true,
+      data,
+      message: 'Analytics settings updated successfully',
+    });
+  } catch (error) {
+    console.error('updateAnalyticsSettings error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to update analytics settings',
+    });
+  }
+}
+
+export async function updateSeoSettings(req, res) {
+  try {
+    const { metaTitle, metaDescription, keywords, ogImage, canonicalUrl, sitemapEnabled } = req.body;
+    const adminId = req.admin?.id || null;
+
+    const data = {
+      ...(metaTitle !== undefined && { metaTitle }),
+      ...(metaDescription !== undefined && { metaDescription }),
+      ...(keywords !== undefined && { keywords }),
+      ...(ogImage !== undefined && { ogImage }),
+      ...(canonicalUrl !== undefined && { canonicalUrl }),
+      ...(sitemapEnabled !== undefined && { sitemapEnabled }),
+    };
+
+    await upsertSetting('seo', data, adminId);
+
+    return res.status(200).json({
+      success: true,
+      data,
+      message: 'SEO settings updated successfully',
+    });
+  } catch (error) {
+    console.error('updateSeoSettings error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to update SEO settings',
+    });
+  }
+}
+
+export async function updateVideoSettings(req, res) {
+  try {
+    const {
+      defaultQuality,
+      autoplay,
+      allowDownload,
+      maxUploadSize,
+      allowedFormats,
+      thumbnailGeneration,
+      watermarkEnabled,
+    } = req.body;
+    const adminId = req.admin?.id || null;
+
+    const data = {
+      ...(defaultQuality !== undefined && { defaultQuality }),
+      ...(autoplay !== undefined && { autoplay }),
+      ...(allowDownload !== undefined && { allowDownload }),
+      ...(maxUploadSize !== undefined && { maxUploadSize }),
+      ...(allowedFormats !== undefined && { allowedFormats }),
+      ...(thumbnailGeneration !== undefined && { thumbnailGeneration }),
+      ...(watermarkEnabled !== undefined && { watermarkEnabled }),
+    };
+
+    await upsertSetting('videoSettings', data, adminId);
+
+    return res.status(200).json({
+      success: true,
+      data,
+      message: 'Video settings updated successfully',
+    });
+  } catch (error) {
+    console.error('updateVideoSettings error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to update video settings',
+    });
+  }
+}
+
+export async function updatePlayerSettings(req, res) {
+  try {
+    const {
+      theme,
+      volume,
+      playbackSpeed,
+      subtitleEnabled,
+      defaultSubtitleLanguage,
+      controlsPosition,
+      progressBar,
+    } = req.body;
+    const adminId = req.admin?.id || null;
+
+    const data = {
+      ...(theme !== undefined && { theme }),
+      ...(volume !== undefined && { volume }),
+      ...(playbackSpeed !== undefined && { playbackSpeed }),
+      ...(subtitleEnabled !== undefined && { subtitleEnabled }),
+      ...(defaultSubtitleLanguage !== undefined && { defaultSubtitleLanguage }),
+      ...(controlsPosition !== undefined && { controlsPosition }),
+      ...(progressBar !== undefined && { progressBar }),
+    };
+
+    await upsertSetting('playerSettings', data, adminId);
+
+    return res.status(200).json({
+      success: true,
+      data,
+      message: 'Player settings updated successfully',
+    });
+  } catch (error) {
+    console.error('updatePlayerSettings error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to update player settings',
+    });
+  }
+}
+
+export async function updateCommentSettings(req, res) {
+  try {
+    const { enabled, moderationRequired, maxCommentLength, allowReplies, profanityFilter } = req.body;
+    const adminId = req.admin?.id || null;
+
+    const data = {
+      ...(enabled !== undefined && { enabled }),
+      ...(moderationRequired !== undefined && { moderationRequired }),
+      ...(maxCommentLength !== undefined && { maxCommentLength }),
+      ...(allowReplies !== undefined && { allowReplies }),
+      ...(profanityFilter !== undefined && { profanityFilter }),
+    };
+
+    await upsertSetting('commentSettings', data, adminId);
+
+    return res.status(200).json({
+      success: true,
+      data,
+      message: 'Comment settings updated successfully',
+    });
+  } catch (error) {
+    console.error('updateCommentSettings error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to update comment settings',
+    });
+  }
+}
+
+export async function updateMaintenanceMode(req, res) {
+  try {
+    const { enabled, message } = req.body;
+    const adminId = req.admin?.id || null;
+
+    const data = {
+      enabled: enabled ?? false,
+      ...(message !== undefined && { message }),
+    };
+
+    await upsertSetting('maintenance', data, adminId);
+
+    return res.status(200).json({
+      success: true,
+      data,
+      message: 'Maintenance mode settings updated successfully',
+    });
+  } catch (error) {
+    console.error('updateMaintenanceMode error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to update maintenance mode',
+    });
+  }
+}
+
+export async function updateRegistrationSettings(req, res) {
+  try {
+    const { enabled, requireEmailVerification, defaultRole, allowedDomains } = req.body;
+    const adminId = req.admin?.id || null;
+
+    const data = {
+      ...(enabled !== undefined && { enabled }),
+      ...(requireEmailVerification !== undefined && { requireEmailVerification }),
+      ...(defaultRole !== undefined && { defaultRole }),
+      ...(allowedDomains !== undefined && { allowedDomains }),
+    };
+
+    await upsertSetting('registration', data, adminId);
+
+    return res.status(200).json({
+      success: true,
+      data,
+      message: 'Registration settings updated successfully',
+    });
+  } catch (error) {
+    console.error('updateRegistrationSettings error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to update registration settings',
+    });
+  }
+}
+
+export async function updateUploadSettings(req, res) {
+  try {
+    const { maxFileSize, allowedTypes, concurrentUploads, storageProvider, cdnEnabled } = req.body;
+    const adminId = req.admin?.id || null;
+
+    const data = {
+      ...(maxFileSize !== undefined && { maxFileSize }),
+      ...(allowedTypes !== undefined && { allowedTypes }),
+      ...(concurrentUploads !== undefined && { concurrentUploads }),
+      ...(storageProvider !== undefined && { storageProvider }),
+      ...(cdnEnabled !== undefined && { cdnEnabled }),
+    };
+
+    await upsertSetting('uploadSettings', data, adminId);
+
+    return res.status(200).json({
+      success: true,
+      data,
+      message: 'Upload settings updated successfully',
+    });
+  } catch (error) {
+    console.error('updateUploadSettings error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to update upload settings',
+    });
+  }
+}
+
+export async function getPublicConfig(req, res) {
+  try {
+    const records = await prisma.siteSettings.findMany();
+    const settings = {};
+    for (const record of records) {
+      if (!PUBLIC_KEYS.includes(record.key)) continue;
+      try {
+        settings[record.key] = JSON.parse(record.value);
+      } catch {
+        settings[record.key] = record.value;
+      }
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: settings,
+    });
+  } catch (error) {
+    console.error('getPublicConfig error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to fetch public config',
+    });
+  }
+}
+
+export async function generateSitemap(req, res) {
+  try {
+    const videos = await prisma.video.findMany({
+      where: { status: 'published' },
+      select: { slug: true, updatedAt: true },
+      orderBy: { updatedAt: 'desc' },
+    });
+
+    const categories = await prisma.category.findMany({
+      where: { isActive: true },
+      select: { slug: true, updatedAt: true },
+    });
+
+    const baseUrl = req.query.base || 'https://anistrem.com';
+
+    let xml = '<?xml version="1.0" encoding="UTF-8"?>\n';
+    xml += '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n';
+    xml += `  <url><loc>${baseUrl}/</loc><changefreq>daily</changefreq><priority>1.0</priority></url>\n`;
+
+    for (const cat of categories) {
+      xml += `  <url><loc>${baseUrl}/category/${cat.slug}</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>\n`;
+    }
+
+    for (const vid of videos) {
+      xml += `  <url><loc>${baseUrl}/watch/${vid.slug}</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>\n`;
+    }
+
+    xml += '</urlset>';
+
+    res.set('Content-Type', 'application/xml');
+    return res.send(xml);
+  } catch (error) {
+    console.error('generateSitemap error:', error);
+    return res.status(500).json({ success: false, message: 'Failed to generate sitemap' });
+  }
+}
+
+export async function generateRobotsTxt(req, res) {
+  try {
+    const baseUrl = req.query.base || 'https://anistrem.com';
+    let txt = 'User-agent: *\n';
+    txt += 'Allow: /\n';
+    txt += 'Disallow: /api/\n';
+    txt += 'Disallow: /admin/\n';
+    txt += `\nSitemap: ${baseUrl}/api/site-settings/sitemap.xml`;
+
+    res.set('Content-Type', 'text/plain');
+    return res.send(txt);
+  } catch (error) {
+    console.error('generateRobotsTxt error:', error);
+    return res.status(500).json({ success: false, message: 'Failed to generate robots.txt' });
+  }
+}

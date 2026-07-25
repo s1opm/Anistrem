@@ -1,32 +1,51 @@
-import SiteSettings from '../models/SiteSettings.js';
+import prisma from '../db/index.js';
 
-let maintenanceCache = null;
-let cacheTimestamp = 0;
-const CACHE_TTL = 60 * 1000;
+const CACHE_TTL = 60_000;
+let cache = { enabled: false, message: '', expiresAt: 0 };
 
-export const maintenanceCheck = async (req, res, next) => {
-  if (req.path.startsWith('/api/') && !req.path.startsWith('/api/site-settings')) {
-    try {
-      const now = Date.now();
-      if (!maintenanceCache || now - cacheTimestamp > CACHE_TTL) {
-        maintenanceCache = await SiteSettings.findOne().select('maintenance').lean();
-        cacheTimestamp = now;
-      }
-      if (maintenanceCache?.maintenance?.enabled) {
-        const clientIP = req.ip || req.connection?.remoteAddress;
-        const allowedIPs = maintenanceCache.maintenance.allowedIPs || [];
-        if (allowedIPs.includes(clientIP) || req.path.startsWith('/api/admin/login')) {
-          return next();
-        }
-        return res.status(503).json({
-          success: false,
-          error: 'Service Unavailable',
-          message: maintenanceCache.maintenance.message || 'We are currently performing maintenance.',
-        });
-      }
-    } catch (error) {
-      console.error('Maintenance check error:', error);
-    }
+export async function maintenanceCheck(req, res, next) {
+  if (req.path.startsWith('/api/admin')) {
+    return next();
   }
-  next();
-};
+
+  const now = Date.now();
+  if (now < cache.expiresAt) {
+    if (cache.enabled) {
+      return res.status(503).json({
+        error: 'Service Unavailable',
+        message: cache.message || 'System is currently under maintenance. Please try again later.',
+      });
+    }
+    return next();
+  }
+
+  try {
+    const setting = await prisma.siteSettings.findUnique({
+      where: { key: 'maintenanceMode' },
+    });
+
+    const isEnabled = setting?.value === 'true' || setting?.value === true;
+
+    const msgSetting = await prisma.siteSettings.findUnique({
+      where: { key: 'maintenanceMessage' },
+    });
+
+    cache = {
+      enabled: isEnabled,
+      message: msgSetting?.value || '',
+      expiresAt: now + CACHE_TTL,
+    };
+
+    if (isEnabled) {
+      return res.status(503).json({
+        error: 'Service Unavailable',
+        message: cache.message || 'System is currently under maintenance. Please try again later.',
+      });
+    }
+
+    return next();
+  } catch (err) {
+    cache = { enabled: false, message: '', expiresAt: now + CACHE_TTL };
+    return next();
+  }
+}

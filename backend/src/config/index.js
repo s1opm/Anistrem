@@ -1,76 +1,70 @@
 import dotenv from 'dotenv';
-dotenv.config();
+import path from 'path';
+import { fileURLToPath } from 'url';
 
-const requiredInProduction = (key) => {
-  const value = process.env[key];
-  if (!value && process.env.NODE_ENV === 'production') {
-    console.error(`FATAL: Missing required environment variable: ${key}`);
-    process.exit(1);
-  }
-  return value;
-};
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-if (process.env.NODE_ENV === 'production') {
-  requiredInProduction('JWT_SECRET');
-  requiredInProduction('JWT_REFRESH_SECRET');
-  requiredInProduction('MONGODB_URI');
-  requiredInProduction('FRONTEND_URL');
-}
+dotenv.config({ path: path.join(__dirname, '../../.env') });
 
 export const config = {
-  port: parseInt(process.env.PORT) || 5000,
   nodeEnv: process.env.NODE_ENV || 'development',
-  
-  mongodb: {
-    uri: process.env.MONGODB_URI || 'mongodb://localhost:27017/anistrem',
+  port: parseInt(process.env.PORT, 10) || 5000,
+
+  database: {
+    url: process.env.DATABASE_URL,
   },
-  
-  jwt: {
-    secret: process.env.JWT_SECRET || 'dev-only-change-in-production',
-    refreshSecret: process.env.JWT_REFRESH_SECRET || 'dev-only-change-in-production',
-    expiresIn: process.env.JWT_EXPIRES_IN || '15m',
-    refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
-  },
-  
+
   frontend: {
     url: process.env.FRONTEND_URL || 'http://localhost:3000',
   },
-  
-  email: {
-    host: process.env.EMAIL_HOST || 'smtp.gmail.com',
-    port: parseInt(process.env.EMAIL_PORT) || 587,
-    user: process.env.EMAIL_USER || '',
-    pass: process.env.EMAIL_PASS || '',
-    from: process.env.EMAIL_FROM || 'AniStrem <noreply@anistrem.com>',
+
+  jwt: {
+    secret: process.env.JWT_SECRET || 'dev-secret-key-change-in-production',
+    refreshSecret: process.env.JWT_REFRESH_SECRET || 'dev-refresh-secret-change-in-production',
+    expiresIn: process.env.JWT_EXPIRES_IN || '15m',
+    refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
   },
-  
+
+  admin: {
+    email: process.env.ADMIN_EMAIL || 'admin@anistrem.com',
+    password: process.env.ADMIN_PASSWORD || 'Admin@123456',
+  },
+
   upload: {
     dir: process.env.UPLOAD_DIR || './uploads',
-    maxFileSize: parseInt(process.env.MAX_FILE_SIZE) || 524288000,
+    maxFileSize: parseInt(process.env.MAX_FILE_SIZE, 10) || 524288000, // 500MB
     allowedVideoTypes: (process.env.ALLOWED_VIDEO_TYPES || 'video/mp4,video/webm,video/ogg,video/quicktime').split(','),
     allowedImageTypes: (process.env.ALLOWED_IMAGE_TYPES || 'image/jpeg,image/png,image/webp,image/gif').split(','),
   },
-  
+
   storage: {
     type: process.env.STORAGE_TYPE || 'local',
+    s3: {
+      accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+      bucket: process.env.AWS_S3_BUCKET,
+      region: process.env.AWS_REGION || 'us-east-1',
+    },
+    cloudinary: {
+      cloudName: process.env.CLOUDINARY_CLOUD_NAME,
+      apiKey: process.env.CLOUDINARY_API_KEY,
+      apiSecret: process.env.CLOUDINARY_API_SECRET,
+    },
+    gcs: {
+      projectId: process.env.GCS_PROJECT_ID,
+      keyFilename: process.env.GCS_KEY_FILENAME,
+      bucketName: process.env.GCS_BUCKET_NAME,
+    },
   },
-  
+
   ffmpeg: {
     path: process.env.FFMPEG_PATH || 'ffmpeg',
-    probePath: process.env.FFPROBE_PATH || 'ffprobe',
+    ffprobePath: process.env.FFPROBE_PATH || 'ffprobe',
   },
-  
+
   rateLimit: {
-    windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 900000,
-    maxRequests: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 100,
-  },
-  
-  socket: {
-    corsOrigin: process.env.SOCKET_IO_CORS_ORIGIN || process.env.FRONTEND_URL || 'http://localhost:3000',
-  },
-  
-  cors: {
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
-    credentials: true,
+    windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS, 10) || 900000, // 15 min
+    maxRequests: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS, 10) || 500,
   },
 };
