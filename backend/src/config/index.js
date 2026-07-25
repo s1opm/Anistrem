@@ -39,7 +39,12 @@ export const config = {
   },
 
   storage: {
-    type: process.env.STORAGE_TYPE || 'local',
+    type: process.env.STORAGE_TYPE || 'supabase',
+    supabase: {
+      url: process.env.SUPABASE_URL,
+      serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
+      bucket: process.env.SUPABASE_BUCKET || 'anistrem-media',
+    },
     s3: {
       accessKeyId: process.env.AWS_ACCESS_KEY_ID,
       secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,

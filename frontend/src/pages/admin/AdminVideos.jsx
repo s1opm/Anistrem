@@ -138,7 +138,7 @@ export default function AdminVideos() {
                   <td className="py-3 px-3">
                     <div className="flex items-center gap-3">
                       <div className="w-16 h-10 rounded-lg overflow-hidden bg-dark-800 shrink-0">
-                        {video.thumbnail?.url ? <img src={video.thumbnail.url} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full gradient-bg opacity-30" />}
+                        {(video.thumbnail?.url || video.thumbnail) ? <img src={video.thumbnail?.url || video.thumbnail} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full gradient-bg opacity-30" />}
                       </div>
                       <div className="min-w-0">
                         <p className="text-white font-medium truncate max-w-[200px]">{video.title}</p>

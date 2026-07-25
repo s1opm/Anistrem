@@ -68,7 +68,7 @@ export default function WatchPage() {
     setMeta('description', video.seoDescription || video.shortDescription || video.description?.substring(0, 160) || video.title);
     setMeta('og:title', video.ogTitle || video.title);
     setMeta('og:description', video.ogDescription || video.shortDescription || '');
-    if (video.thumbnail?.url) setMeta('og:image', video.thumbnail.url);
+    if (video.thumbnail?.url || video.thumbnail) setMeta('og:image', video.thumbnail?.url || video.thumbnail);
     setMeta('twitter:card', video.twitterCard || 'summary_large_image');
   };
 

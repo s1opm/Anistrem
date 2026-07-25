@@ -101,8 +101,8 @@ export default function SearchOverlay() {
               {results.map((video) => (
                 <button key={video.id} onClick={() => handleSelect(video)} className="flex items-center gap-3 w-full px-3 py-2 rounded-lg hover:bg-dark-700/50 transition-colors text-left">
                   <div className="w-24 h-14 rounded-lg overflow-hidden bg-dark-800 shrink-0">
-                    {video.thumbnail?.url ? (
-                      <img src={video.thumbnail.url} alt="" className="w-full h-full object-cover" />
+                    {(video.thumbnail?.url || video.thumbnail) ? (
+                      <img src={video.thumbnail?.url || video.thumbnail} alt="" className="w-full h-full object-cover" />
                     ) : (
                       <div className="w-full h-full gradient-bg opacity-30" />
                     )}

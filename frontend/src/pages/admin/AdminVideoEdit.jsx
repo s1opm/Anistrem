@@ -34,7 +34,7 @@ export default function AdminVideoEdit() {
           isFeatured: v.isFeatured || false, ageRestriction: v.ageRestriction || 'none',
         });
         setLoading(false);
-        if (v.thumbnail?.url) setThumbnailPreview(v.thumbnail.url);
+        if (v.thumbnail?.url || v.thumbnail) setThumbnailPreview(v.thumbnail?.url || v.thumbnail);
       })
       .catch(() => { toast.error('Video not found'); navigate('/admin/videos'); });
   }, [id]);
@@ -174,7 +174,7 @@ export default function AdminVideoEdit() {
                 <HiOutlinePhotograph className="w-4 h-4" /> Change Thumbnail
               </button>
               {thumbnailPreview && thumbnailFile && (
-                <button type="button" onClick={() => { setThumbnailFile(null); setThumbnailPreview(video?.thumbnail?.url || null); }} className="px-3 py-2 bg-red-600/20 hover:bg-red-600/30 rounded-lg text-sm text-red-400 transition-colors">Revert</button>
+                <button type="button" onClick={() => { setThumbnailFile(null); setThumbnailPreview(video?.thumbnail?.url || video?.thumbnail || null); }} className="px-3 py-2 bg-red-600/20 hover:bg-red-600/30 rounded-lg text-sm text-red-400 transition-colors">Revert</button>
               )}
             </div>
           </div>

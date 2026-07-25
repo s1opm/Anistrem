@@ -81,7 +81,7 @@ export default function AdminDashboard() {
               <div key={video.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-dark-700/30 transition-colors">
                 <span className="text-dark-500 text-sm w-5">{i + 1}</span>
                 <div className="w-20 h-12 rounded-lg overflow-hidden bg-dark-800 shrink-0">
-                  {video.thumbnail?.url ? <img src={video.thumbnail.url} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full gradient-bg opacity-30" />}
+                  {(video.thumbnail?.url || video.thumbnail) ? <img src={video.thumbnail?.url || video.thumbnail} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full gradient-bg opacity-30" />}
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-white truncate">{video.title}</p>

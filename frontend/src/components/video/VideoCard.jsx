@@ -153,7 +153,7 @@ export default function VideoCard({ video, index = 0, layout = 'vertical' }) {
 
   const title = video.title || 'Untitled';
   const slug = video.slug || video.id;
-  const thumbnailUrl = video.thumbnail?.url || null;
+  const thumbnailUrl = video.thumbnail?.url || video.thumbnail || null;
   const categoryName = video.category?.name;
   const season = video.season;
   const episode = video.episode;

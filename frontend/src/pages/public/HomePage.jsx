@@ -42,8 +42,8 @@ export default function HomePage() {
         ) : heroVideo ? (
           <>
             <div className="absolute inset-0">
-              {heroVideo.thumbnail?.url ? (
-                <img src={heroVideo.thumbnail.url} alt="" className="w-full h-full object-cover" />
+              {(heroVideo.thumbnail?.url || heroVideo.thumbnail) ? (
+                <img src={heroVideo.thumbnail?.url || heroVideo.thumbnail} alt="" className="w-full h-full object-cover" />
               ) : (
                 <div className="w-full h-full bg-gradient-to-br from-primary-900 via-secondary-900 to-dark-900" />
               )}

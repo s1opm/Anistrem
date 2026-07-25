@@ -1,6 +1,8 @@
 import prisma from '../db/index.js';
 import slugify from 'slugify';
 import { AppError, asyncHandler } from '../middleware/errorHandler.js';
+import { uploadFileAndCleanup, isRemoteUrl } from '../services/storageService.js';
+import { v4 as uuidv4 } from 'uuid';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const isUuid = (v) => UUID_RE.test(v);
@@ -222,11 +224,18 @@ export const createVideo = asyncHandler(async (req, res) => {
   }
 
   const videoFile = req.files?.video?.[0];
-  const videoUrl = videoFile ? `/uploads/videos/${videoFile.filename}` : null;
+  let videoUrl = null;
+  if (videoFile) {
+    const remotePath = `videos/${uuidv4()}${videoFile.originalname ? '.' + videoFile.originalname.split('.').pop() : '.mp4'}`;
+    videoUrl = await uploadFileAndCleanup(videoFile.path, remotePath, videoFile.mimetype || 'video/mp4');
+  }
 
-  const thumbnailUrl = req.files?.thumbnail?.[0]
-    ? `/uploads/thumbnails/${req.files.thumbnail[0].filename}`
-    : null;
+  const thumbFile = req.files?.thumbnail?.[0];
+  let thumbnailUrl = null;
+  if (thumbFile) {
+    const remotePath = `thumbnails/${uuidv4()}${thumbFile.originalname ? '.' + thumbFile.originalname.split('.').pop() : '.png'}`;
+    thumbnailUrl = await uploadFileAndCleanup(thumbFile.path, remotePath, thumbFile.mimetype || 'image/png');
+  }
 
   const video = await prisma.video.create({
     data: {
@@ -319,8 +328,16 @@ export const updateVideo = asyncHandler(async (req, res) => {
     updateData.categoryId = categoryId;
   }
 
-  if (req.file) {
-    updateData.videoUrl = `/uploads/videos/${req.file.filename}`;
+  if (req.files?.video?.[0]) {
+    const vFile = req.files.video[0];
+    const remotePath = `videos/${uuidv4()}${vFile.originalname ? '.' + vFile.originalname.split('.').pop() : '.mp4'}`;
+    updateData.videoUrl = await uploadFileAndCleanup(vFile.path, remotePath, vFile.mimetype || 'video/mp4');
+  }
+
+  if (req.files?.thumbnail?.[0]) {
+    const tFile = req.files.thumbnail[0];
+    const remotePath = `thumbnails/${uuidv4()}${tFile.originalname ? '.' + tFile.originalname.split('.').pop() : '.png'}`;
+    updateData.thumbnail = await uploadFileAndCleanup(tFile.path, remotePath, tFile.mimetype || 'image/png');
   }
 
   if (title !== undefined && title !== existing.title) {

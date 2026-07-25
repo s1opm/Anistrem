@@ -27,3 +27,9 @@ services:
         value: ./uploads
       - key: MAX_FILE_SIZE
         value: "10737418240"
+      - key: SUPABASE_URL
+        value: https://ehwcfhjkygyjtamwxbxb.supabase.co
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: SUPABASE_BUCKET
+        value: anistrem-media
