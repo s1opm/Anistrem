@@ -177,9 +177,11 @@ export const createVideo = asyncHandler(async (req, res) => {
   let resolvedCategoryId = categoryId;
 
   if (!resolvedCategoryId && categorySlug) {
-    const cat = await prisma.category.findFirst({
-      where: { OR: [{ id: categorySlug }, { slug: categorySlug }, { name: categorySlug }] },
-    });
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const where = uuidRegex.test(categorySlug)
+      ? { OR: [{ id: categorySlug }, { slug: categorySlug }, { name: categorySlug }] }
+      : { OR: [{ slug: categorySlug }, { name: categorySlug }] };
+    const cat = await prisma.category.findFirst({ where });
     if (cat) resolvedCategoryId = cat.id;
   }
 
