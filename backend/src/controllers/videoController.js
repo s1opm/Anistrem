@@ -211,6 +211,9 @@ export const createVideo = asyncHandler(async (req, res) => {
     counter++;
   }
 
+  const videoFile = req.files?.video?.[0];
+  const videoUrl = videoFile ? `/uploads/videos/${videoFile.filename}` : null;
+
   const thumbnailUrl = req.files?.thumbnail?.[0]
     ? `/uploads/thumbnails/${req.files.thumbnail[0].filename}`
     : null;
@@ -226,8 +229,8 @@ export const createVideo = asyncHandler(async (req, res) => {
       visibility,
       videoUrl,
       thumbnail: thumbnailUrl,
-      videoSize: req.file?.size || null,
-      videoFormat: req.file?.mimetype || null,
+      videoSize: videoFile?.size || null,
+      videoFormat: videoFile?.mimetype || null,
       metaTitle: metaTitle || null,
       metaDescription: metaDescription || null,
       canonicalUrl: canonicalUrl || null,
