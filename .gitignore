@@ -1,0 +1,58 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+server.log
+
+# OS files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Upload directories (keep structure via .gitkeep)
+uploads/videos/*
+uploads/thumbnails/*
+uploads/temp/*
+uploads/processed/*
+!uploads/videos/.gitkeep
+!uploads/thumbnails/.gitkeep
+!uploads/temp/.gitkeep
+!uploads/processed/.gitkeep
+backend/uploads/videos/*
+backend/uploads/thumbnails/*
+backend/uploads/temp/*
+backend/uploads/processed/*
+!backend/uploads/videos/.gitkeep
+!backend/uploads/thumbnails/.gitkeep
+!backend/uploads/temp/.gitkeep
+!backend/uploads/processed/.gitkeep
+
+# Coverage
+coverage/
+.nyc_output/
+
+# Misc
+*.tgz
+.cache/
+
+# Local Netlify folder
+.netlify

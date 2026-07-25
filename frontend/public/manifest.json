@@ -1,0 +1,12 @@
+{
+  "name": "AniStrem – Premium Anime Streaming Platform",
+  "short_name": "AniStrem",
+  "description": "Watch thousands of anime series and movies in HD with a fast, modern, and responsive streaming experience.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#09090b",
+  "theme_color": "#00E5FF",
+  "icons": [
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}

@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="description" content="Watch thousands of anime series and movies in HD with a fast, modern, and responsive streaming experience." />
+    <meta name="keywords" content="AniStrem, Anime Streaming, Anime, Watch Anime Online, HD Anime, Anime Episodes, Streaming" />
+    <meta name="author" content="AniStrem" />
+    <meta name="robots" content="index, follow" />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://anistrem.com" />
+    <meta property="og:title" content="AniStrem - Premium Anime Streaming Platform" />
+    <meta property="og:description" content="Watch thousands of anime series and movies in HD with a fast, modern, and responsive streaming experience." />
+    <meta property="og:image" content="https://anistrem.com/logo.svg" />
+    <meta property="og:site_name" content="AniStrem" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="AniStrem - Premium Anime Streaming Platform" />
+    <meta name="twitter:description" content="Watch thousands of anime series and movies in HD with a fast, modern, and responsive streaming experience." />
+    <meta name="twitter:image" content="https://anistrem.com/logo.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Outfit:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+    <title>AniStrem - Premium Anime Streaming Platform</title>
+  </head>
+  <body class="bg-dark-950 text-white antialiased">
+    <div id="root"></div>
+    <script>
+      // GitHub Pages SPA: restore clean URL from 404.html redirect
+      (function(l) {
+        if (l.search[1] === '/') {
+          var decoded = l.search.slice(1).split('&').map(function(s) {
+            return s.replace(/~and~/g, '&')
+          }).join('?');
+          window.history.replaceState(null, null,
+            l.pathname.slice(0, -1) + decoded + l.hash
+          );
+        }
+      }(window.location))
+    </script>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

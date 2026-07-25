@@ -1,0 +1,22 @@
+{
+  "name": "anistrem",
+  "version": "1.0.0",
+  "description": "AniStrem – Premium Anime Streaming Platform",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "setup": "node scripts/setup.js",
+    "dev": "node scripts/dev.js",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "build": "cd frontend && npm install && npm run build",
+    "seed": "cd backend && npm run seed",
+    "start": "cd backend && npm start",
+    "postinstall": "cd backend && npm install && cd ../frontend && npm install"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": ["anistrem", "anime", "streaming", "video", "react", "node"],
+  "license": "MIT"
+}
