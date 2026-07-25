@@ -50,6 +50,7 @@ const allowedOrigins = [
   'http://localhost:5000',
   'https://anistrem.netlify.app',
   'https://anistrem-993.netlify.app',
+  'https://anistrems.netlify.app',
 ];
 
 app.use(cors({
