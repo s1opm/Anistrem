@@ -2,6 +2,9 @@ import prisma from '../db/index.js';
 import slugify from 'slugify';
 import { AppError, asyncHandler } from '../middleware/errorHandler.js';
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const isUuid = (v) => UUID_RE.test(v);
+
 const VIDEO_INCLUDE = {
   category: {
     select: {
@@ -48,10 +51,14 @@ export const getVideos = asyncHandler(async (req, res) => {
   }
 
   if (category) {
-    where.OR = [
-      { categoryId: category },
-      { category: { slug: category } },
-    ];
+    if (isUuid(category)) {
+      where.OR = [
+        { categoryId: category },
+        { category: { slug: category } },
+      ];
+    } else {
+      where.category = { slug: category };
+    }
   }
 
   if (tag) {

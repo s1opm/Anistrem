@@ -2,6 +2,9 @@ import prisma from '../db/index.js';
 import slugify from 'slugify';
 import { AppError, asyncHandler } from '../middleware/errorHandler.js';
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const isUuid = (v) => UUID_RE.test(v);
+
 function generateSlug(name, id) {
   let base = slugify(name, { lower: true, strict: true });
   if (id) base = `${base}-${id.slice(0, 8)}`;
