@@ -1,43 +1,64 @@
 import fs from 'fs/promises';
+import { createReadStream } from 'fs';
+import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { Upload } from '@aws-sdk/lib-storage';
 import path from 'path';
-import { config } from '../config/index.js';
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const BUCKET = process.env.SUPABASE_BUCKET || 'anistrem-media';
 
-function getPublicUrl(filePath) {
+const s3 = new S3Client({
+  region: 'us-east-1',
+  endpoint: `${SUPABASE_URL}/storage/v1/s3`,
+  credentials: {
+    accessKeyId: SUPABASE_KEY,
+    secretAccessKey: SUPABASE_KEY,
+  },
+  forcePathStyle: true,
+});
+
+export function getPublicUrl(filePath) {
   return `${SUPABASE_URL}/storage/v1/object/public/${BUCKET}/${filePath}`;
 }
 
 export async function uploadToStorage(localPath, remotePath, contentType) {
-  const buffer = await fs.readFile(localPath);
-  const res = await fetch(`${SUPABASE_URL}/storage/v1/object/${BUCKET}/${remotePath}`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${SUPABASE_KEY}`,
-      'Content-Type': contentType,
-      'x-upsert': 'true',
-    },
-    body: buffer,
-  });
+  const stat = await fs.stat(localPath);
+  const stream = createReadStream(localPath);
 
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`Supabase upload failed (${res.status}): ${body}`);
+  if (stat.size <= 50 * 1024 * 1024) {
+    const buffer = await fs.readFile(localPath);
+    await s3.send(new PutObjectCommand({
+      Bucket: BUCKET,
+      Key: remotePath,
+      Body: buffer,
+      ContentType: contentType,
+    }));
+  } else {
+    const parallelUploads = new Upload({
+      client: s3,
+      params: {
+        Bucket: BUCKET,
+        Key: remotePath,
+        Body: stream,
+        ContentType: contentType,
+      },
+      queueSize: 4,
+      partSize: 10 * 1024 * 1024,
+      leavePartsOnError: false,
+    });
+    await parallelUploads.done();
   }
 
   return getPublicUrl(remotePath);
 }
 
 export async function deleteFromStorage(remotePath) {
-  const res = await fetch(`${SUPABASE_URL}/storage/v1/object/${BUCKET}/${remotePath}`, {
-    method: 'DELETE',
-    headers: { Authorization: `Bearer ${SUPABASE_KEY}` },
-  });
-  if (!res.ok && res.status !== 404) {
-    const body = await res.text();
-    console.error(`Supabase delete failed (${res.status}): ${body}`);
+  const { DeleteObjectCommand } = await import('@aws-sdk/client-s3');
+  try {
+    await s3.send(new DeleteObjectCommand({ Bucket: BUCKET, Key: remotePath }));
+  } catch (err) {
+    console.error('Supabase delete failed:', err.message);
   }
 }
 
@@ -45,10 +66,6 @@ export async function uploadFileAndCleanup(localPath, remotePath, contentType) {
   const url = await uploadToStorage(localPath, remotePath, contentType);
   await fs.unlink(localPath).catch(() => {});
   return url;
-}
-
-export function getStorageUrl() {
-  return { supabaseUrl: SUPABASE_URL, bucket: BUCKET, publicBase: getPublicUrl('') };
 }
 
 export function isRemoteUrl(url) {
