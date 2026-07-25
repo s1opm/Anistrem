@@ -111,10 +111,13 @@ export const getVideos = asyncHandler(async (req, res) => {
 export const getVideo = asyncHandler(async (req, res) => {
   const { id } = req.params;
 
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const where = uuidRegex.test(id)
+    ? { OR: [{ id }, { slug: id }] }
+    : { slug: id };
+
   const video = await prisma.video.findFirst({
-    where: {
-      OR: [{ id }, { slug: id }],
-    },
+    where,
     include: VIDEO_INCLUDE,
   });
 
