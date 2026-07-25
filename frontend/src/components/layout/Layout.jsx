@@ -111,7 +111,7 @@ export default function Layout({ hideFooter = false }) {
                       <div className="p-2 max-h-80 overflow-y-auto">
                         {categories.slice(0, 15).map((cat) => (
                           <Link
-                            key={cat._id}
+                            key={cat.id}
                             to={`/category/${cat.slug}`}
                             className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-dark-700/50 transition-colors"
                           >
@@ -198,7 +198,7 @@ export default function Layout({ hideFooter = false }) {
               <div className="grid grid-cols-2 gap-1 max-h-48 overflow-y-auto">
                 {categories.slice(0, 10).map((cat) => (
                   <Link
-                    key={cat._id}
+                    key={cat.id}
                     to={`/category/${cat.slug}`}
   
                     className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-dark-300 hover:text-white hover:bg-dark-700/50"

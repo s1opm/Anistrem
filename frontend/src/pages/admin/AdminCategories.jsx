@@ -20,7 +20,7 @@ export default function AdminCategories() {
 
   const startEdit = (cat) => {
     setForm({ name: cat.name, slug: cat.slug, description: cat.description || '', icon: cat.icon || '', color: cat.color || '#7c3aed', isActive: cat.isActive !== false, sortOrder: cat.sortOrder || 0 });
-    setEditingId(cat._id);
+    setEditingId(cat.id);
     setShowForm(true);
   };
 
@@ -116,7 +116,7 @@ export default function AdminCategories() {
         ) : (
           <div className="space-y-2">
             {categories.map((cat) => (
-              <div key={cat._id} className="flex items-center gap-4 p-3 rounded-xl hover:bg-dark-700/30 transition-colors">
+              <div key={cat.id} className="flex items-center gap-4 p-3 rounded-xl hover:bg-dark-700/30 transition-colors">
                 <div className="w-8 h-8 rounded-lg flex items-center justify-center text-lg" style={{ backgroundColor: `${cat.color}20` }}>
                   {cat.icon || '📁'}
                 </div>
@@ -130,7 +130,7 @@ export default function AdminCategories() {
                 <span className="text-xs text-dark-400">{cat.videoCount || 0} videos</span>
                 <div className="flex items-center gap-1">
                   <button onClick={() => startEdit(cat)} className="p-1.5 text-dark-400 hover:text-primary-400 rounded-lg hover:bg-dark-700/50 transition-colors"><HiOutlinePencil className="w-4 h-4" /></button>
-                  <button onClick={() => handleDelete(cat._id)} className="p-1.5 text-dark-400 hover:text-red-400 rounded-lg hover:bg-red-500/10 transition-colors"><HiOutlineTrash className="w-4 h-4" /></button>
+                  <button onClick={() => handleDelete(cat.id)} className="p-1.5 text-dark-400 hover:text-red-400 rounded-lg hover:bg-red-500/10 transition-colors"><HiOutlineTrash className="w-4 h-4" /></button>
                 </div>
               </div>
             ))}

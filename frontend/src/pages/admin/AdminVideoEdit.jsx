@@ -28,7 +28,7 @@ export default function AdminVideoEdit() {
         setVideo(v);
         setForm({
           title: v.title || '', description: v.description || '',
-          category: v.category?._id || v.category || '', tags: (v.tags || []).join(', '),
+          category: v.category?.id || v.category || '', tags: (v.tags || []).join(', '),
           language: v.language || 'en', status: v.status || 'draft',
           allowComments: v.allowComments !== false,
           isFeatured: v.isFeatured || false, ageRestriction: v.ageRestriction || 'none',
@@ -110,7 +110,7 @@ export default function AdminVideoEdit() {
                 <label className="block text-sm font-medium text-dark-300 mb-1.5">Category</label>
                 <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} className="input-field">
                   <option value="">Select category</option>
-                  {categories.map(cat => <option key={cat._id} value={cat._id}>{cat.name}</option>)}
+                  {categories.map(cat => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
                 </select>
               </div>
               <div>
@@ -192,7 +192,7 @@ export default function AdminVideoEdit() {
             <button onClick={handleSave} disabled={saving} className="btn-primary flex-1 flex items-center justify-center gap-2">
               {saving ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <><HiOutlineSave className="w-4 h-4" /> Save Changes</>}
             </button>
-            <Link to={`/watch/${video.slug || video._id}`} className="btn-secondary flex items-center justify-center">View</Link>
+            <Link to={`/watch/${video.slug || video.id}`} className="btn-secondary flex items-center justify-center">View</Link>
           </div>
         </div>
       </div>

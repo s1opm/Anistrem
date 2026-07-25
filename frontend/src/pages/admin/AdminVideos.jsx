@@ -92,7 +92,7 @@ export default function AdminVideos() {
         </div>
         <select value={filters.category} onChange={(e) => setFilters({ ...filters, category: e.target.value })} className="input-field-sm w-auto">
           <option value="">All Categories</option>
-          {categories.map(cat => <option key={cat._id} value={cat._id}>{cat.name}</option>)}
+          {categories.map(cat => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
         </select>
         <select value={filters.status} onChange={(e) => setFilters({ ...filters, status: e.target.value })} className="input-field-sm w-auto">
           <option value="all">All Status</option>
@@ -134,7 +134,7 @@ export default function AdminVideos() {
             </thead>
             <tbody>
               {videos.map((video) => (
-                <tr key={video._id} className="border-b border-dark-700/30 hover:bg-dark-700/20 transition-colors">
+                <tr key={video.id} className="border-b border-dark-700/30 hover:bg-dark-700/20 transition-colors">
                   <td className="py-3 px-3">
                     <div className="flex items-center gap-3">
                       <div className="w-16 h-10 rounded-lg overflow-hidden bg-dark-800 shrink-0">
@@ -160,15 +160,15 @@ export default function AdminVideos() {
                   <td className="py-3 px-3">
                     <div className="flex items-center justify-end gap-2">
                       {video.status !== 'published' && (
-                        <button onClick={() => handleStatusChange(video._id, 'published')} className="text-xs text-green-400 hover:text-green-300 px-2 py-1 rounded bg-green-500/10">Publish</button>
+                        <button onClick={() => handleStatusChange(video.id, 'published')} className="text-xs text-green-400 hover:text-green-300 px-2 py-1 rounded bg-green-500/10">Publish</button>
                       )}
                       {video.status === 'published' && (
-                        <button onClick={() => handleStatusChange(video._id, 'unlisted')} className="text-xs text-yellow-400 hover:text-yellow-300 px-2 py-1 rounded bg-yellow-500/10">Unpublish</button>
+                        <button onClick={() => handleStatusChange(video.id, 'unlisted')} className="text-xs text-yellow-400 hover:text-yellow-300 px-2 py-1 rounded bg-yellow-500/10">Unpublish</button>
                       )}
-                      <Link to={`/admin/videos/edit/${video._id}`} className="p-1.5 text-dark-400 hover:text-primary-400 rounded-lg hover:bg-dark-700/50 transition-colors">
+                      <Link to={`/admin/videos/edit/${video.id}`} className="p-1.5 text-dark-400 hover:text-primary-400 rounded-lg hover:bg-dark-700/50 transition-colors">
                         <HiOutlinePencil className="w-4 h-4" />
                       </Link>
-                      <button onClick={() => handleDelete(video._id)} className="p-1.5 text-dark-400 hover:text-red-400 rounded-lg hover:bg-red-500/10 transition-colors">
+                      <button onClick={() => handleDelete(video.id)} className="p-1.5 text-dark-400 hover:text-red-400 rounded-lg hover:bg-red-500/10 transition-colors">
                         <HiOutlineTrash className="w-4 h-4" />
                       </button>
                     </div>

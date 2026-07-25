@@ -78,7 +78,7 @@ export default function AdminDashboard() {
           <h2 className="text-lg font-bold text-white mb-4">Top Videos</h2>
           <div className="space-y-3">
             {topVideos.slice(0, 5).map((video, i) => (
-              <div key={video._id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-dark-700/30 transition-colors">
+              <div key={video.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-dark-700/30 transition-colors">
                 <span className="text-dark-500 text-sm w-5">{i + 1}</span>
                 <div className="w-20 h-12 rounded-lg overflow-hidden bg-dark-800 shrink-0">
                   {video.thumbnail?.url ? <img src={video.thumbnail.url} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full gradient-bg opacity-30" />}
@@ -87,7 +87,7 @@ export default function AdminDashboard() {
                   <p className="text-sm text-white truncate">{video.title}</p>
                   <p className="text-xs text-dark-400">{formatNumber(video.viewCount)} views</p>
                 </div>
-                <Link to={`/admin/videos/edit/${video._id}`} className="text-xs text-primary-400 hover:text-primary-300">Edit</Link>
+                <Link to={`/admin/videos/edit/${video.id}`} className="text-xs text-primary-400 hover:text-primary-300">Edit</Link>
               </div>
             ))}
             {topVideos.length === 0 && <p className="text-dark-400 text-sm py-4 text-center">No videos yet</p>}
@@ -99,7 +99,7 @@ export default function AdminDashboard() {
           <h2 className="text-lg font-bold text-white mb-4">Top Categories</h2>
           <div className="space-y-3">
             {topCategories.slice(0, 5).map((cat, i) => (
-              <div key={cat._id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-dark-700/30 transition-colors">
+              <div key={cat.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-dark-700/30 transition-colors">
                 <span className="text-dark-500 text-sm w-5">{i + 1}</span>
                 {cat.icon && <span className="text-lg">{cat.icon}</span>}
                 <div className="flex-1">
@@ -132,7 +132,7 @@ export default function AdminDashboard() {
             </thead>
             <tbody>
               {recentUploads.slice(0, 8).map((video) => (
-                <tr key={video._id} className="border-b border-dark-700/30 hover:bg-dark-700/20">
+                <tr key={video.id} className="border-b border-dark-700/30 hover:bg-dark-700/20">
                   <td className="py-3 px-2 text-white truncate max-w-xs">{video.title}</td>
                   <td className="py-3 px-2">
                     <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${video.status === 'published' ? 'bg-green-500/20 text-green-400' : video.status === 'draft' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-dark-600 text-dark-300'}`}>
@@ -142,7 +142,7 @@ export default function AdminDashboard() {
                   <td className="py-3 px-2 text-dark-300">{formatNumber(video.viewCount)}</td>
                   <td className="py-3 px-2 text-dark-400">{new Date(video.createdAt).toLocaleDateString()}</td>
                   <td className="py-3 px-2 text-right">
-                    <Link to={`/admin/videos/edit/${video._id}`} className="text-primary-400 hover:text-primary-300">Edit</Link>
+                    <Link to={`/admin/videos/edit/${video.id}`} className="text-primary-400 hover:text-primary-300">Edit</Link>
                   </td>
                 </tr>
               ))}

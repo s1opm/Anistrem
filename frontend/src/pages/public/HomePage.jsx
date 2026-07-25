@@ -97,7 +97,7 @@ export default function HomePage() {
             </div>
             <div className="flex gap-3 overflow-x-auto pb-4 scrollbar-hide">
               {featuredCategories.map((cat, i) => (
-                <Link key={cat._id} to={`/category/${cat.slug}`} className="flex-shrink-0 px-5 py-3 rounded-xl bg-dark-800/50 border border-dark-700/50 hover:border-primary-500/30 hover:bg-dark-700/50 transition-all duration-200 group">
+                <Link key={cat.id} to={`/category/${cat.slug}`} className="flex-shrink-0 px-5 py-3 rounded-xl bg-dark-800/50 border border-dark-700/50 hover:border-primary-500/30 hover:bg-dark-700/50 transition-all duration-200 group">
                   <div className="flex items-center gap-2">
                     {cat.icon && <span className="text-xl">{cat.icon}</span>}
                     <span className="text-sm font-medium text-dark-200 group-hover:text-white whitespace-nowrap">{cat.name}</span>
@@ -130,7 +130,7 @@ export default function HomePage() {
             <h2 className="text-xl font-bold text-white mb-4">Explore Categories</h2>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
               {featuredCategories.slice(0, 10).map((cat, i) => (
-                <Link key={cat._id} to={`/category/${cat.slug}`} className="relative h-28 rounded-xl overflow-hidden group">
+                <Link key={cat.id} to={`/category/${cat.slug}`} className="relative h-28 rounded-xl overflow-hidden group">
                   <div className={`absolute inset-0 bg-gradient-to-br ${cat.gradient || 'from-primary-500 to-secondary-500'} opacity-60 group-hover:opacity-80 transition-opacity`} />
                   <div className="absolute inset-0 flex flex-col items-center justify-center p-4 text-center">
                     {cat.icon && <span className="text-3xl mb-2">{cat.icon}</span>}

@@ -45,7 +45,7 @@ export default function WatchPage() {
       try {
         const video = await fetchVideo(slug);
         if (video) {
-          fetchRelated(video._id || video.id, 8);
+          fetchRelated(video.id, 8);
           document.title = `${video.title} - AniStrem`;
           updateMetaTags(video);
         }
@@ -188,11 +188,11 @@ export default function WatchPage() {
           <div className="flex-1 min-w-0">
             {/* Video Player */}
             <div id="video-player-container" className="relative aspect-video bg-black rounded-2xl overflow-hidden mb-4 group">
-              {currentVideo.videoFile?.url || currentVideo.qualities?.length > 0 ? (
+              {(currentVideo.videoUrl || currentVideo.videoFile?.url || currentVideo.qualities?.length > 0) ? (
                 <video
                   ref={videoRef}
                   className="w-full h-full"
-                  src={currentVideo.qualities?.find(q => q.quality === selectedQuality)?.url || currentVideo.videoFile?.url}
+                  src={currentVideo.qualities?.find(q => q.quality === selectedQuality)?.url || currentVideo.videoFile?.url || currentVideo.videoUrl}
                   onTimeUpdate={handleTimeUpdate}
                   onLoadedMetadata={(e) => setDuration(e.target.duration)}
                   onPlay={() => setIsPlaying(true)}
@@ -364,7 +364,7 @@ export default function WatchPage() {
             <h3 className="text-lg font-bold text-white mb-4">Related Videos</h3>
             <div className="space-y-2">
               {relatedVideos.map((video, i) => (
-                <VideoCard key={video._id || video.id} video={video} index={i} layout="horizontal" />
+                <VideoCard key={video.id} video={video} index={i} layout="horizontal" />
               ))}
               {relatedVideos.length === 0 && (
                 <p className="text-dark-400 text-sm py-4">No related videos found</p>

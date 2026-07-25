@@ -152,7 +152,7 @@ export default function VideoCard({ video, index = 0, layout = 'vertical' }) {
   const [isHovered, setIsHovered] = useState(false);
 
   const title = video.title || 'Untitled';
-  const slug = video.slug || video._id;
+  const slug = video.slug || video.id;
   const thumbnailUrl = video.thumbnail?.url || null;
   const categoryName = video.category?.name;
   const season = video.season;

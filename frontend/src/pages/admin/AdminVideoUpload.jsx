@@ -253,7 +253,7 @@ export default function AdminVideoUpload() {
               <label className="block text-sm font-medium text-dark-300 mb-1.5">Category</label>
               <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} className="input-field">
                 <option value="">Select category</option>
-                {categories.map(cat => <option key={cat._id} value={cat._id}>{cat.name}</option>)}
+                {categories.map(cat => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
               </select>
             </div>
             <div>

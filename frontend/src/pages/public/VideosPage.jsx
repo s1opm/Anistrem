@@ -27,7 +27,7 @@ export default function VideosPage() {
       <div className="flex flex-wrap items-center gap-3 mb-6">
         <select value={selectedCategory} onChange={(e) => { setSelectedCategory(e.target.value); setSearchParams(p => { p.delete('page'); return p; }); }} className="input-field-sm w-auto">
           <option value="">All Categories</option>
-          {categories.map(cat => <option key={cat._id} value={cat._id}>{cat.name}</option>)}
+          {categories.map(cat => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
         </select>
         <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} className="input-field-sm w-auto">
           <option value="-publishedAt">Latest</option>

@@ -99,7 +99,7 @@ export default function SearchOverlay() {
             <div className="p-2">
               <p className="px-3 py-1 text-xs text-dark-400 uppercase tracking-wider">Videos</p>
               {results.map((video) => (
-                <button key={video.id || video._id} onClick={() => handleSelect(video)} className="flex items-center gap-3 w-full px-3 py-2 rounded-lg hover:bg-dark-700/50 transition-colors text-left">
+                <button key={video.id} onClick={() => handleSelect(video)} className="flex items-center gap-3 w-full px-3 py-2 rounded-lg hover:bg-dark-700/50 transition-colors text-left">
                   <div className="w-24 h-14 rounded-lg overflow-hidden bg-dark-800 shrink-0">
                     {video.thumbnail?.url ? (
                       <img src={video.thumbnail.url} alt="" className="w-full h-full object-cover" />
@@ -125,7 +125,7 @@ export default function SearchOverlay() {
               <p className="px-3 py-1 text-xs text-dark-400 uppercase tracking-wider">Popular Categories</p>
               <div className="grid grid-cols-2 gap-1">
                 {categories.map((cat) => (
-                  <button key={cat._id} onClick={() => { navigate(`/category/${cat.slug}`); setSearchOpen(false); }} className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-dark-700/50 transition-colors text-left">
+                  <button key={cat.id} onClick={() => { navigate(`/category/${cat.slug}`); setSearchOpen(false); }} className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-dark-700/50 transition-colors text-left">
                     {cat.icon && <span className="text-lg">{cat.icon}</span>}
                     <span className="text-sm text-dark-300">{cat.name}</span>
                   </button>

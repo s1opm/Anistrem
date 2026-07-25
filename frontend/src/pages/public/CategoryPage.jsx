@@ -23,7 +23,7 @@ export default function CategoryPage() {
 
   useEffect(() => {
     if (category) {
-      fetchVideos({ category: category._id, page, limit: 20, status: 'published' });
+      fetchVideos({ category: category.id, page, limit: 20, status: 'published' });
     }
   }, [category, page]);
 
