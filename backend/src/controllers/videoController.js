@@ -2,6 +2,7 @@ import prisma from '../db/index.js';
 import slugify from 'slugify';
 import { AppError, asyncHandler } from '../middleware/errorHandler.js';
 import { uploadFileAndCleanup, isRemoteUrl } from '../services/storageService.js';
+import { compressVideo } from '../services/compressionService.js';
 import { v4 as uuidv4 } from 'uuid';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -226,8 +227,10 @@ export const createVideo = asyncHandler(async (req, res) => {
   const videoFile = req.files?.video?.[0];
   let videoUrl = null;
   if (videoFile) {
-    const remotePath = `videos/${uuidv4()}${videoFile.originalname ? '.' + videoFile.originalname.split('.').pop() : '.mp4'}`;
-    videoUrl = await uploadFileAndCleanup(videoFile.path, remotePath, videoFile.mimetype || 'video/mp4');
+    const compressed = await compressVideo(videoFile.path);
+    const ext = compressed.split('.').pop() || 'mp4';
+    const remotePath = `videos/${uuidv4()}.${ext}`;
+    videoUrl = await uploadFileAndCleanup(compressed, remotePath, videoFile.mimetype || 'video/mp4');
   }
 
   const thumbFile = req.files?.thumbnail?.[0];
