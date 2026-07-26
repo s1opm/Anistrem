@@ -1,64 +1,65 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
-const loadedScripts = new Map();
-const initialized = {
-  socialBar: false,
-  popunder: false,
-};
+const loadedScripts = new Set();
 
-export function useAdScript(id, src, attrs = {}) {
-  const initializedRef = useRef(false);
+export function useScriptOnce(id, src) {
+  const done = useRef(false);
 
   useEffect(() => {
-    if (initializedRef.current) return;
-    if (loadedScripts.has(id)) {
-      initializedRef.current = true;
+    if (done.current || loadedScripts.has(id)) {
+      done.current = true;
       return;
     }
-
-    if (!document.getElementById(id) && src) {
-      const script = document.createElement('script');
-      script.id = id;
-      script.async = true;
-      Object.entries(attrs).forEach(([k, v]) => script.setAttribute(k, v));
-      if (src) script.src = src;
-      document.head.appendChild(script);
-      loadedScripts.set(id, true);
-    }
-    initializedRef.current = true;
+    if (!src) return;
+    const s = document.createElement('script');
+    s.id = id;
+    s.async = true;
+    s.src = src;
+    document.head.appendChild(s);
+    loadedScripts.add(id);
+    done.current = true;
   }, [id, src]);
 }
 
-export function usePopunderInit(src) {
-  const ref = useRef(false);
+let instanceCounter = 0;
+
+export function useHpfBanner(key, width, height) {
+  const containerRef = useRef(null);
+  const [rendered, setRendered] = useState(false);
 
   useEffect(() => {
-    if (ref.current || initialized.popunder || !src) return;
-    initialized.popunder = true;
-    ref.current = true;
+    const el = containerRef.current;
+    if (!el || rendered) return;
+    setRendered(true);
 
-    const script = document.createElement('script');
-    script.async = true;
-    script.src = src;
-    document.head.appendChild(script);
-  }, [src]);
-}
+    const iframe = document.createElement('iframe');
+    iframe.width = width;
+    iframe.height = height;
+    iframe.style.border = '0';
+    iframe.style.display = 'block';
+    iframe.style.margin = '0 auto';
+    iframe.src = 'about:blank';
+    el.appendChild(iframe);
 
-export function useSocialBarInit(src) {
-  const ref = useRef(false);
+    const doc = iframe.contentDocument || iframe.contentWindow.document;
+    doc.open();
+    doc.write(`
+      <!DOCTYPE html>
+      <html><head></head><body style="margin:0;padding:0;overflow:hidden;">
+      <script>
+      var atOptions = {
+        key : '${key}',
+        format : 'iframe',
+        height : ${height},
+        width : ${width},
+        params : {}
+      };
+      </script>
+      <script async src="https://www.highperformanceformat.com/${key}/invoke.js"></script>
+      </body></html>
+    `);
+    doc.close();
+  }, [key, width, height, rendered]);
 
-  useEffect(() => {
-    if (ref.current || initialized.socialBar || !src) return;
-    initialized.socialBar = true;
-    ref.current = true;
-
-    const script = document.createElement('script');
-    script.async = true;
-    script.src = src;
-    document.head.appendChild(script);
-  }, [src]);
-}
-
-export function AdProvider({ children }) {
-  return <>{children}</>;
+  return containerRef;
 }

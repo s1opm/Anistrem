@@ -1,8 +1,6 @@
-import { usePopunderInit } from './AdManager.jsx';
-
-const POPUNDER_SRC = '';
+import { useScriptOnce } from './AdManager.jsx';
 
 export default function Popunder() {
-  usePopunderInit(POPUNDER_SRC);
+  useScriptOnce('popunder', 'https://pl30537906.effectivecpmnetwork.com/b1/14/2f/b1142f4289fd1652797deeadb84c9063.js');
   return null;
 }

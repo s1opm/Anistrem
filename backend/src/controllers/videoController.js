@@ -225,7 +225,7 @@ export const createVideo = asyncHandler(async (req, res) => {
   }
 
   const videoFile = req.files?.video?.[0];
-  let videoUrl = null;
+  let videoUrl = req.body.videoUrl || null;
   if (videoFile) {
     const compressed = await compressVideo(videoFile.path);
     const ext = compressed.split('.').pop() || 'mp4';
@@ -234,7 +234,7 @@ export const createVideo = asyncHandler(async (req, res) => {
   }
 
   const thumbFile = req.files?.thumbnail?.[0];
-  let thumbnailUrl = null;
+  let thumbnailUrl = req.body.thumbnail || null;
   if (thumbFile) {
     const remotePath = `thumbnails/${uuidv4()}${thumbFile.originalname ? '.' + thumbFile.originalname.split('.').pop() : '.png'}`;
     thumbnailUrl = await uploadFileAndCleanup(thumbFile.path, remotePath, thumbFile.mimetype || 'image/png');

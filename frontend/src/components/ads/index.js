@@ -6,7 +6,7 @@ export { default as Banner160x600 } from './Banner160x600.jsx';
 export { default as Banner160x300 } from './Banner160x300.jsx';
 export { default as Banner728x90 } from './Banner728x90.jsx';
 export { default as Banner320x50 } from './Banner320x50.jsx';
+export { default as Banner468x60 } from './Banner468x60.jsx';
 export { default as SocialBar } from './SocialBar.jsx';
 export { default as Popunder } from './Popunder.jsx';
 export { default as SmartLink } from './SmartLink.jsx';
-export { useAdScript, usePopunderInit, useSocialBarInit } from './AdManager.jsx';

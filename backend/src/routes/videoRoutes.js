@@ -15,7 +15,16 @@ router.get('/:id/related', videoValidators.getById, videoController.getRelated);
 router.get('/:id', videoValidators.getById, videoController.getVideo);
 router.get('/slug/:slug', videoController.getVideoBySlug);
 
-router.post('/', authMiddleware, uploadMultiple, handleUploadError, videoController.createVideo);
+router.post('/', authMiddleware, (req, res, next) => {
+  const ct = req.headers['content-type'] || '';
+  if (ct.includes('multipart/form-data')) {
+    return uploadMultiple(req, res, (err) => {
+      if (err) return handleUploadError(err, req, res, next);
+      next();
+    });
+  }
+  next();
+}, videoController.createVideo);
 router.put('/:id', authMiddleware, videoValidators.update, videoController.updateVideo);
 router.delete('/:id', authMiddleware, videoValidators.delete, videoController.deleteVideo);
 router.patch('/:id/publish', authMiddleware, videoController.publishVideo);

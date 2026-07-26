@@ -1,8 +1,12 @@
 import { useRef, useEffect, useState } from 'react';
+import { useHpfBanner } from './AdManager.jsx';
+
+const KEY = '8e61c89c19e603cf3a11eda2a3e340eb';
 
 export default function Banner160x300({ className = '', style = {}, lazyLoad = true }) {
   const ref = useRef(null);
   const [visible, setVisible] = useState(!lazyLoad);
+  const bannerRef = useHpfBanner(KEY, 160, 300);
 
   useEffect(() => {
     if (!lazyLoad || !ref.current) return;
@@ -16,14 +20,7 @@ export default function Banner160x300({ className = '', style = {}, lazyLoad = t
 
   return (
     <div ref={ref} className={`flex justify-center ${className}`} style={style}>
-      {visible && (
-        <ins
-          className="adsbygoogle"
-          style={{ display: 'inline-block', width: '160px', height: '300px' }}
-          data-ad-client=""
-          data-ad-slot=""
-        />
-      )}
+      {visible && <div ref={bannerRef} />}
     </div>
   );
 }

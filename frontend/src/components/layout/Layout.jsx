@@ -6,7 +6,7 @@ import { useThemeStore, useUIStore } from '../../store.js';
 import { useScrollPosition, useClickOutside } from '../../hooks/index.js';
 import api from '../../services/api.js';
 import SearchOverlay from '../common/SearchOverlay.jsx';
-import { HeaderBanner, SidebarBanner, SocialBar, Popunder } from '../ads/index.js';
+import { HeaderBanner, SidebarBanner, SocialBar, Popunder, Banner728x90, Banner320x50 } from '../ads/index.js';
 
 const navLinks = [
   { name: 'Home', path: '/', icon: HiHome },
@@ -240,14 +240,10 @@ export default function Layout({ hideFooter = false }) {
           {/* Footer Banner */}
           <div className="max-w-7xl mx-auto px-4 py-4">
             <div className="hidden sm:block">
-              <div className="w-full flex justify-center">
-                <ins className="adsbygoogle" style={{ display: 'inline-block', width: '728px', height: '90px' }} data-ad-client="" data-ad-slot="" />
-              </div>
+              <Banner728x90 />
             </div>
             <div className="block sm:hidden">
-              <div className="w-full flex justify-center">
-                <ins className="adsbygoogle" style={{ display: 'inline-block', width: '320px', height: '50px' }} data-ad-client="" data-ad-slot="" />
-              </div>
+              <Banner320x50 />
             </div>
           </div>
           

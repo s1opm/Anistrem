@@ -21,6 +21,7 @@ import videoRoutes from './routes/videoRoutes.js';
 import categoryRoutes from './routes/categoryRoutes.js';
 import dashboardRoutes from './routes/dashboardRoutes.js';
 import siteSettingsRoutes from './routes/siteSettingsRoutes.js';
+import uploadRoutes from './routes/uploadRoutes.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -122,6 +123,7 @@ app.use('/api/videos', videoRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/site-settings', siteSettingsRoutes);
+app.use('/api/uploads', uploadRoutes);
 
 app.get('/api/health', async (req, res) => {
   try {

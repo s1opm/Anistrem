@@ -106,42 +106,77 @@ export default function AdminVideoUpload() {
     setStep(3);
 
     try {
-      const formData = new FormData();
-      formData.append('video', file);
-      if (thumbnailFile) formData.append('thumbnail', thumbnailFile);
-      formData.append('title', form.title);
-      if (form.category) formData.append('category', form.category);
-      if (form.description) formData.append('description', form.description);
-      if (form.tags) {
-        const tagsArr = form.tags.split(',').map(t => t.trim()).filter(Boolean);
-        tagsArr.forEach(tag => formData.append('tags', tag));
-      }
-      if (form.language) formData.append('language', form.language);
-      if (form.status) formData.append('status', form.status);
-      formData.append('allowComments', form.allowComments);
-      formData.append('isFeatured', form.isFeatured);
-      formData.append('ageRating', form.ageRestriction === 'none' ? 'G' : form.ageRestriction);
+      let videoUrl = null;
+      let thumbnailUrl = null;
 
-      const res = await api.post('/api/videos', formData, {
-        headers: { 'Content-Type': undefined },
-        onUploadProgress: (e) => {
-          if (e.total) setUploadProgress(Math.round((e.loaded / e.total) * 100));
-        },
+      // Get signed upload URL from backend
+      const signRes = await api.post('/api/uploads/presign', {
+        filename: file.name,
+        contentType: file.type || 'video/mp4',
+        type: 'video',
+      });
+      const { uploadUrl, publicUrl: vidPublicUrl, token: supabaseToken } = signRes.data.data;
+      videoUrl = vidPublicUrl;
+
+      // Upload video directly to Supabase Storage
+      await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', uploadUrl, true);
+        xhr.setRequestHeader('Authorization', `Bearer ${supabaseToken}`);
+        xhr.setRequestHeader('Content-Type', file.type || 'video/mp4');
+        xhr.setRequestHeader('x-upsert', 'true');
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable) setUploadProgress(Math.round((e.loaded / e.total) * 100));
+        };
+        xhr.onload = () => { if (xhr.status >= 200 && xhr.status < 300) resolve(); else reject(new Error(`Video upload failed (${xhr.status}): ${xhr.responseText}`)); };
+        xhr.onerror = () => reject(new Error('Network error uploading video'));
+        xhr.send(file);
       });
 
-      const jobId = res.data.data?.processingJobId;
-      if (jobId) {
-        setProcessingJob({ id: jobId, status: 'processing' });
-        pollProcessingStatus(jobId);
-      } else {
-        toast.success('Video uploaded successfully!');
-        navigate('/admin/videos');
+      setUploadProgress(100);
+
+      // Upload thumbnail directly to Supabase if provided
+      if (thumbnailFile) {
+        const thumbSignRes = await api.post('/api/uploads/presign', {
+          filename: thumbnailFile.name,
+          contentType: thumbnailFile.type || 'image/png',
+          type: 'thumbnail',
+        });
+        const { uploadUrl: thumbUploadUrl, publicUrl: thumbPublicUrl, token: thumbToken } = thumbSignRes.data.data;
+        thumbnailUrl = thumbPublicUrl;
+
+        await fetch(thumbUploadUrl, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${thumbToken}`,
+            'Content-Type': thumbnailFile.type || 'image/png',
+            'x-upsert': 'true',
+          },
+          body: thumbnailFile,
+        });
       }
+
+      const tagsArr = form.tags ? form.tags.split(',').map(t => t.trim()).filter(Boolean) : [];
+
+      // Create video record in database
+      const res = await api.post('/api/videos', {
+        title: form.title,
+        description: form.description || undefined,
+        category: form.category,
+        tags: tagsArr,
+        language: form.language || undefined,
+        status: form.status,
+        allowComments: form.allowComments,
+        isFeatured: form.isFeatured,
+        ageRating: form.ageRestriction === 'none' ? 'G' : form.ageRestriction,
+        videoUrl,
+        thumbnail: thumbnailUrl,
+      });
+
+      toast.success('Video uploaded successfully!');
+      navigate('/admin/videos');
     } catch (err) {
-      const fieldErrors = err.response?.data?.errors;
-      const msg = fieldErrors?.length
-        ? fieldErrors.map(e => `${e.field}: ${e.message}`).join('; ')
-        : err.response?.data?.message || 'Upload failed';
+      const msg = err.response?.data?.message || err.message || 'Upload failed';
       toast.error(msg);
       setUploading(false);
     }
