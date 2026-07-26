@@ -6,7 +6,7 @@ import { useVideoStore } from '../../store.js';
 import { useVideoProgress } from '../../hooks/index.js';
 import { formatNumber, formatDuration, formatTimeAgo, copyToClipboard, getShareUrl } from '../../utils/index.js';
 import VideoCard from '../../components/video/VideoCard.jsx';
-import AdSlot from '../../components/common/AdSlot.jsx';
+import { HeaderBanner, NativeBanner, Banner300x250, SidebarBanner } from '../../components/ads/index.js';
 
 export default function WatchPage() {
   const { slug } = useParams();
@@ -303,7 +303,7 @@ export default function WatchPage() {
               )}
             </div>
 
-            <AdSlot position="belowPlayer" className="mb-4" />
+            <HeaderBanner className="mb-4" />
 
             {/* Video Info */}
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
@@ -356,11 +356,14 @@ export default function WatchPage() {
                 )}
               </div>
             )}
+
+            {/* Native Ad below description */}
+            <NativeBanner className="mb-6" />
           </div>
 
           {/* Sidebar */}
           <div className="w-full lg:w-96 shrink-0">
-            <AdSlot position="sidebar" className="mb-6 hidden lg:block" />
+            <SidebarBanner className="mb-6 hidden lg:block" />
             <h3 className="text-lg font-bold text-white mb-4">Related Videos</h3>
             <div className="space-y-2">
               {relatedVideos.map((video, i) => (
@@ -370,6 +373,7 @@ export default function WatchPage() {
                 <p className="text-dark-400 text-sm py-4">No related videos found</p>
               )}
             </div>
+            <Banner300x250 className="mt-6" />
           </div>
         </div>
       </div>

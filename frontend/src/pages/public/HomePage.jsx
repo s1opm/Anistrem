@@ -6,7 +6,7 @@ import { useVideoStore, useCategoryStore } from '../../store.js';
 import { VideoSection } from '../../components/video/VideoGrid.jsx';
 import VideoCard from '../../components/video/VideoCard.jsx';
 import { HeroSkeleton, CategoryCardSkeleton } from '../../components/ui/Skeletons.jsx';
-import AdSlot from '../../components/common/AdSlot.jsx';
+import { NativeBanner, Banner300x250 } from '../../components/ads/index.js';
 
 export default function HomePage() {
   const { featuredVideos, trendingVideos, latestVideos, fetchFeatured, fetchTrending, fetchLatest } = useVideoStore();
@@ -108,8 +108,8 @@ export default function HomePage() {
           </motion.section>
         )}
 
-        {/* Hero Ad Slot */}
-        <AdSlot position="betweenVideos" className="mb-10" />
+        {/* Native Ad after first anime row */}
+        <NativeBanner className="mb-6" />
 
         {/* Trending Videos */}
         <VideoSection title="Trending Now" videos={trendingVideos} loading={loading} viewAllLink="/trending" />
@@ -117,7 +117,10 @@ export default function HomePage() {
         {/* Latest Videos */}
         <VideoSection title="Latest Uploads" videos={latestVideos} loading={loading} viewAllLink="/latest" />
 
-        <AdSlot position="betweenVideos" className="mb-10" />
+        {/* 300x250 Ad after more videos */}
+        <div className="flex justify-center my-8">
+          <Banner300x250 />
+        </div>
 
         {/* Featured Videos */}
         {featuredVideos.length > 1 && (

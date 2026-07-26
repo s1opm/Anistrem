@@ -6,7 +6,7 @@ import { useThemeStore, useUIStore } from '../../store.js';
 import { useScrollPosition, useClickOutside } from '../../hooks/index.js';
 import api from '../../services/api.js';
 import SearchOverlay from '../common/SearchOverlay.jsx';
-import AdSlot from '../common/AdSlot.jsx';
+import { HeaderBanner, SidebarBanner, SocialBar, Popunder } from '../ads/index.js';
 
 const navLinks = [
   { name: 'Home', path: '/', icon: HiHome },
@@ -224,9 +224,9 @@ export default function Layout({ hideFooter = false }) {
         )}
       </header>
       
-      {/* Header Ad Slot */}
+      {/* Header Ad Banner */}
       <div className="pt-16">
-        <AdSlot position="header" />
+        <HeaderBanner />
       </div>
       
       {/* Main Content */}
@@ -237,7 +237,19 @@ export default function Layout({ hideFooter = false }) {
       {/* Footer */}
       {!hideFooter && (
         <footer className="bg-dark-900/80 border-t border-dark-700/50 mt-16">
-          <AdSlot position="footer" className="py-4" />
+          {/* Footer Banner */}
+          <div className="max-w-7xl mx-auto px-4 py-4">
+            <div className="hidden sm:block">
+              <div className="w-full flex justify-center">
+                <ins className="adsbygoogle" style={{ display: 'inline-block', width: '728px', height: '90px' }} data-ad-client="" data-ad-slot="" />
+              </div>
+            </div>
+            <div className="block sm:hidden">
+              <div className="w-full flex justify-center">
+                <ins className="adsbygoogle" style={{ display: 'inline-block', width: '320px', height: '50px' }} data-ad-client="" data-ad-slot="" />
+              </div>
+            </div>
+          </div>
           
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
@@ -326,6 +338,9 @@ export default function Layout({ hideFooter = false }) {
           </motion.button>
         )}
       </AnimatePresence>
+      {/* Global Ads */}
+      <Popunder />
+      <SocialBar />
     </div>
   );
 }
