@@ -30,5 +30,6 @@ router.delete('/:id', authMiddleware, videoValidators.delete, videoController.de
 router.patch('/:id/publish', authMiddleware, videoController.publishVideo);
 router.patch('/:id/unpublish', authMiddleware, videoController.unpublishVideo);
 router.patch('/:id/feature', authMiddleware, videoController.featureVideo);
+router.post('/:id/view', videoController.recordView);
 
 export default router;

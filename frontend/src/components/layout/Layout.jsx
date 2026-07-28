@@ -6,7 +6,17 @@ import { useThemeStore, useUIStore } from '../../store.js';
 import { useScrollPosition, useClickOutside } from '../../hooks/index.js';
 import api from '../../services/api.js';
 import SearchOverlay from '../common/SearchOverlay.jsx';
-import { HeaderBanner, SidebarBanner, SocialBar, Popunder, Banner728x90, Banner320x50 } from '../ads/index.js';
+import { HeaderBanner, SidebarBanner, SocialBar, AdblockNotice, Banner728x90, Banner320x50 } from '../ads/index.js';
+
+function useIsMobile(bp = 640) {
+  const [m, setM] = useState(() => typeof window !== 'undefined' && window.innerWidth < bp);
+  useEffect(() => {
+    const fn = () => setM(window.innerWidth < bp);
+    window.addEventListener('resize', fn);
+    return () => window.removeEventListener('resize', fn);
+  }, [bp]);
+  return m;
+}
 
 const navLinks = [
   { name: 'Home', path: '/', icon: HiHome },
@@ -32,6 +42,7 @@ export default function Layout({ hideFooter = false }) {
   const [showCategories, setShowCategories] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const categoriesRef = useRef(null);
+  const isMobile = useIsMobile();
   
   useClickOutside(categoriesRef, () => setShowCategories(false));
   
@@ -239,12 +250,7 @@ export default function Layout({ hideFooter = false }) {
         <footer className="bg-dark-900/80 border-t border-dark-700/50 mt-16">
           {/* Footer Banner */}
           <div className="max-w-7xl mx-auto px-4 py-4">
-            <div className="hidden sm:block">
-              <Banner728x90 />
-            </div>
-            <div className="block sm:hidden">
-              <Banner320x50 />
-            </div>
+            {isMobile ? <Banner320x50 /> : <Banner728x90 />}
           </div>
           
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -334,8 +340,8 @@ export default function Layout({ hideFooter = false }) {
           </motion.button>
         )}
       </AnimatePresence>
-      {/* Global Ads */}
-      <Popunder />
+      {/* Anti-Adblock */}
+      <AdblockNotice />
       <SocialBar />
     </div>
   );

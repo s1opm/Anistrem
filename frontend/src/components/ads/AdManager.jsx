@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 
 const loadedScripts = new Set();
 
@@ -25,12 +25,13 @@ let instanceCounter = 0;
 
 export function useHpfBanner(key, width, height) {
   const containerRef = useRef(null);
-  const [rendered, setRendered] = useState(false);
 
   useEffect(() => {
     const el = containerRef.current;
-    if (!el || rendered) return;
-    setRendered(true);
+    if (!el) return;
+
+    const uid = `hpf-${++instanceCounter}`;
+    const html = `<!DOCTYPE html><html><head></head><body style="margin:0;padding:0;overflow:hidden;"><script>var atOptions={key:'${key}',format:'iframe',height:${height},width:${width},params:{}};</script><script async src="https://www.highperformanceformat.com/${key}/invoke.js"></script></body></html>`;
 
     const iframe = document.createElement('iframe');
     iframe.width = width;
@@ -38,28 +39,18 @@ export function useHpfBanner(key, width, height) {
     iframe.style.border = '0';
     iframe.style.display = 'block';
     iframe.style.margin = '0 auto';
-    iframe.src = 'about:blank';
+    iframe.srcdoc = html;
+    iframe.id = uid;
     el.appendChild(iframe);
 
-    const doc = iframe.contentDocument || iframe.contentWindow.document;
-    doc.open();
-    doc.write(`
-      <!DOCTYPE html>
-      <html><head></head><body style="margin:0;padding:0;overflow:hidden;">
-      <script>
-      var atOptions = {
-        key : '${key}',
-        format : 'iframe',
-        height : ${height},
-        width : ${width},
-        params : {}
-      };
-      </script>
-      <script async src="https://www.highperformanceformat.com/${key}/invoke.js"></script>
-      </body></html>
-    `);
-    doc.close();
-  }, [key, width, height, rendered]);
+    return () => {
+      iframe.remove();
+    };
+  }, [key, width, height]);
 
   return containerRef;
+}
+
+export function resetAdScripts() {
+  loadedScripts.clear();
 }

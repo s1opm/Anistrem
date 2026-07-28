@@ -623,3 +623,71 @@ export const getStats = asyncHandler(async (req, res) => {
     },
   });
 });
+
+export const recordView = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  const video = await prisma.video.findUnique({ where: { id }, select: { id: true, status: true } });
+  if (!video) throw new AppError('Video not found', 404);
+
+  const ip = req.ip || req.headers['x-forwarded-for'] || req.connection?.remoteAddress || null;
+  const sessionId = req.cookies?.sessionId || null;
+  const referrer = req.headers['referer'] || null;
+  const ua = req.headers['user-agent'] || '';
+  const country = null;
+  const region = null;
+  const city = null;
+  const device = /mobile|android|iphone|ipad/i.test(ua) ? 'mobile' : 'desktop';
+  const os = /windows/i.test(ua) ? 'Windows' : /mac/i.test(ua) ? 'macOS' : /linux/i.test(ua) ? 'Linux' : /android/i.test(ua) ? 'Android' : /ios|iphone|ipad/i.test(ua) ? 'iOS' : null;
+  const browser = /chrome/i.test(ua) ? 'Chrome' : /firefox/i.test(ua) ? 'Firefox' : /safari/i.test(ua) ? 'Safari' : /edge/i.test(ua) ? 'Edge' : null;
+
+  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+
+  const recentView = await prisma.videoView.findFirst({
+    where: {
+      videoId: id,
+      createdAt: { gte: oneHourAgo },
+      OR: [
+        sessionId ? { sessionId } : {},
+        ip ? { ip } : {},
+      ].filter(o => Object.keys(o).length > 0),
+    },
+  });
+
+  const isUnique = !recentView;
+
+  await prisma.videoView.create({
+    data: {
+      videoId: id,
+      sessionId,
+      ip,
+      country,
+      region,
+      city,
+      device,
+      os,
+      browser,
+      referrer,
+      isUnique,
+      startTime: new Date(),
+      videoDuration: req.body?.duration ? parseFloat(req.body.duration) : null,
+    },
+  });
+
+  if (isUnique) {
+    await prisma.video.update({
+      where: { id },
+      data: { viewCount: { increment: 1 } },
+    });
+  }
+
+  const updated = await prisma.video.findUnique({
+    where: { id },
+    select: { viewCount: true },
+  });
+
+  res.json({
+    success: true,
+    data: { viewCount: updated.viewCount, isUnique },
+  });
+});

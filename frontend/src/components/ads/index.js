@@ -10,3 +10,4 @@ export { default as Banner468x60 } from './Banner468x60.jsx';
 export { default as SocialBar } from './SocialBar.jsx';
 export { default as Popunder } from './Popunder.jsx';
 export { default as SmartLink } from './SmartLink.jsx';
+export { default as AdblockNotice } from './AdblockNotice.jsx';

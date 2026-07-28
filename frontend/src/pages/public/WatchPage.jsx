@@ -4,9 +4,20 @@ import { motion } from 'framer-motion';
 import { HiPlay, HiPause, HiVolumeUp, HiVolumeOff, HiCog, HiShare, HiThumbUp, HiOutlineEye, HiOutlineShare, HiArrowsExpand } from 'react-icons/hi';
 import { useVideoStore } from '../../store.js';
 import { useVideoProgress } from '../../hooks/index.js';
+import api from '../../services/api.js';
 import { formatNumber, formatDuration, formatTimeAgo, copyToClipboard, getShareUrl } from '../../utils/index.js';
 import VideoCard from '../../components/video/VideoCard.jsx';
 import { HeaderBanner, NativeBanner, Banner300x250, SidebarBanner } from '../../components/ads/index.js';
+
+function useIsMobile(bp = 640) {
+  const [m, setM] = useState(() => typeof window !== 'undefined' && window.innerWidth < bp);
+  useEffect(() => {
+    const fn = () => setM(window.innerWidth < bp);
+    window.addEventListener('resize', fn);
+    return () => window.removeEventListener('resize', fn);
+  }, [bp]);
+  return m;
+}
 
 export default function WatchPage() {
   const { slug } = useParams();
@@ -27,6 +38,7 @@ export default function WatchPage() {
   const speedRef = useRef(null);
   const shareRef = useRef(null);
   const { progress, updateProgress } = useVideoProgress(slug);
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -48,6 +60,7 @@ export default function WatchPage() {
           fetchRelated(video.id, 8);
           document.title = `${video.title} - AniStrem`;
           updateMetaTags(video);
+          api.post(`/api/videos/${video.id}/view`, { duration: video.duration }).catch(() => {});
         }
       } catch (err) {
         console.error('Failed to load video:', err);
@@ -363,7 +376,7 @@ export default function WatchPage() {
 
           {/* Sidebar */}
           <div className="w-full lg:w-96 shrink-0">
-            <SidebarBanner className="mb-6 hidden lg:block" />
+            {!isMobile && <SidebarBanner className="mb-6" />}
             <h3 className="text-lg font-bold text-white mb-4">Related Videos</h3>
             <div className="space-y-2">
               {relatedVideos.map((video, i) => (
